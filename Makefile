@@ -1,11 +1,16 @@
-#DEFS=-DMAXITER=6000 -DESCAPE_RADIUS_SQUARED=6*6
-DEFS=-DMAXITER=8100 -DESCAPE_RADIUS_SQUARED=6*6
+DEFS=-DMAXITER=6000 -DESCAPE_RADIUS_SQUARED=6*6 -DESCAPE_RADIUS_MANHATTAN=6
+
+# At 6000 iterations, escape 6*6, res 212x120
+#  fma:        209
+#  avx2:       200
+#  avx:        106
+#  sse4:       71
+#  sse2:       73
 #
-#fma:     122
-#avx2:    116
-#avx:     92
-#sse4:    70
-#vanilla: 64
+#  implicit:   148
+#  openmpsimd: 142
+#  cilksimd:   142
+#  vanilla:    117
 
 # - Vanilla algorithm
 
@@ -43,7 +48,9 @@ BINARIES = \
 	mandelbrot-cilkplus-loop \
 	mandelbrot-thread-loop \
 	\
-	mandelbrot-cuda-loop
+	mandelbrot-openmp-offload \
+	mandelbrot-openacc-offload \
+	mandelbrot-cuda-offload
 	
 
 all: $(BINARIES)
@@ -54,7 +61,11 @@ clean:
 $(filter mandelbrot-openmp%,$(BINARIES)): CXXFLAGS += -fopenmp
 $(filter mandelbrot-cilk%,$(BINARIES)):   CXXFLAGS += -fcilkplus
 $(filter mandelbrot-cilk%,$(BINARIES)):   LDFLAGS  += -lcilkrts
-$(filter %explicit-simd,$(BINARIES)):     CXXFLAGS += -march=native
+$(filter %explicit-simd,$(BINARIES)):     CXXFLAGS += -march=native $(PLATFORM_OPTS)
+$(filter mandelbrot-openacc%,$(BINARIES)): CXXFLAGS += -fopenacc
+
+$(filter mandelbrot-openmp-offload,$(BINARIES)):  CXXFLAGS += -foffload=x86_64-intelmicemul-linux-gnu -foffload=nvptx-none
+$(filter mandelbrot-openacc-offload,$(BINARIES)): CXXFLAGS += -foffload=x86_64-intelmicemul-linux-gnu -foffload=nvptx-none
 
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXX = nvcc -x cu
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXXFLAGS = -std=c++11 -O3
