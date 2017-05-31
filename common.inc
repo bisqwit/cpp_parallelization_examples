@@ -11,9 +11,9 @@
 #include <cassert>
 
 #include <SDL.h>
-static const unsigned Xres = 848, Yres = 480;
+//static const unsigned Xres = 848, Yres = 480;
 //static const unsigned Xres = 424, Yres = 240;
-//static const unsigned Xres = 212, Yres = 120;
+static const unsigned Xres = 212, Yres = 120;
 
 
 double GetTime()
