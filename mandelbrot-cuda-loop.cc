@@ -3,8 +3,8 @@
 
 void __global__ Iterate(double zr, double zi, double xscale, double yscale, double* results)
 {
-    const double escape_radius_squared = 6*6;
-    const int maxiter = 8100;
+    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+    const int maxiter = MAXITER;
 
     unsigned slotno = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned x = slotno % Xres, y = slotno / Xres;

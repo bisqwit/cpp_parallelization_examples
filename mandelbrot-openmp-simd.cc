@@ -3,8 +3,8 @@
 template<unsigned N>
 std::array<double,N> Iterate(std::array<double,N> zr, std::array<double,N> zi)
 {
-    const double escape_radius_squared = 6*6;
-    const int maxiter = 8100;
+    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+    const int maxiter = MAXITER;
     std::array<double,N> cr = zr, sr = cr;
     std::array<double,N> ci = zi, si = ci;
     std::array<double,N> dist{};

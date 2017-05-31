@@ -1,3 +1,5 @@
+DEFS=-DMAXITER=6000 -DESCAPE_RADIUS_SQUARED=6*6
+
 # - Vanilla algorithm
 
 # SIMD
@@ -18,7 +20,7 @@
 
 CC=g++
 CXX=g++
-CPPFLAGS = -Wall -Wextra
+CPPFLAGS = -Wall -Wextra $(DEFS)
 CXXFLAGS = -std=c++14 -Ofast -march=native
 LDFLAGS  = -pthread $(shell pkg-config sdl --libs --cflags)
 
@@ -45,9 +47,9 @@ clean:
 $(filter mandelbrot-openmp%,$(BINARIES)): CXXFLAGS += -fopenmp
 $(filter mandelbrot-cilk%,$(BINARIES)):   CXXFLAGS += -fcilkplus
 $(filter mandelbrot-cilk%,$(BINARIES)):   LDFLAGS  += -lcilkrts
-$(filter %explicit-simd,$(BINARIES)):     CXXFLAGS += -msse -msse2 -mssse3 -msse4 -mfma -mavx -mavx2
+$(filter %explicit-simd,$(BINARIES)):     CXXFLAGS += -march=native
 
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXX = nvcc -x cu
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXXFLAGS = -std=c++11 -O3
-$(filter mandelbrot-cuda%,$(BINARIES)):   CPPFLAGS = -Xcompiler '-Wall -Wextra -Ofast'
+$(filter mandelbrot-cuda%,$(BINARIES)):   CPPFLAGS = -Xcompiler '-Wall -Wextra -Ofast' $(DEFS)
 $(filter mandelbrot-cuda%,$(BINARIES)):   LDFLAGS  = $(shell pkg-config sdl --libs --cflags)

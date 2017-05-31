@@ -2,8 +2,8 @@
 
 double Iterate(double zr, double zi)
 {
-    const double escape_radius_squared = 6*6;
-    const int maxiter = 8100;
+    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+    const int maxiter = MAXITER;
     double cr = zr, sr = cr;
     double ci = zi, si = ci;
     double dist = 0;

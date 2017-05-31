@@ -2,63 +2,24 @@
 
 #include <x86intrin.h>
 
-#include "simd_emu.hh" // Optional: Emulate intrinsics when they are not available for this platform
-
+#include "simd_emu.hh"
 
 __m128i to128(__m256d v)
     { __m256i c = _mm256_castpd_si256(v); return _mm_packs_epi16(extract128(c,0), extract128(c,1)); }
 __m256d ifelse(__m256i c, __m256d ok, __m256d nok) { return _mm256_blendv_pd(nok, ok, _mm256_castsi256_pd(c)); }
 __m256d ifelse(__m128i c, __m256d ok, __m256d nok) { return ifelse(_mm256_cvtepi32_epi64(c), ok, nok); }
 
-__m256d _mm256_log2_pd(__m256d x) /* log2(x) for four positive doubles */
-{
-    //return _mm256_set_pd(std::log2(x[3]),std::log2(x[2]),std::log2(x[1]),std::log2(x[0]));
-
-    __m256d half = _mm256_set1_pd(0.5);
-    // x = frexp(x, &e);
-    __m256i e = _mm256_srli_epi64(_mm256_castpd_si256(x), 52);
-    __m256i m = _mm256_and_si256(_mm256_castpd_si256(x), _mm256_set1_epi64x((1ull << 52)-1));
-    x = _mm256_or_pd(half, _mm256_castsi256_pd(m));
-
-    __m256d ltid = _mm256_cmp_pd(x, _mm256_set1_pd(1/std::sqrt(2.)), _CMP_LT_OQ);
-    __m256i lti = _mm256_castpd_si256(ltid);
-    // if(lt) --e;
-    __m256d dbl_e = _mm256_sub_pd(_mm256_cvtepi64_pd(_mm256_add_epi64(e,lti)), _mm256_set1_pd(1022));
-
-    // if(lt) z = x-0.5; else z = x-1;
-    // z = x - (lt ? 0.5 : 1);
-    // z = x - 0.5 - (~lt & 0.5)
-    __m256d z = _mm256_sub_pd(x, _mm256_add_pd(half, _mm256_andnot_pd(ltid, half)));
-    // y = 0.5 * x + (lt ? -0.25 : 0) + 0.5
-    // y = 0.5 * x + lt*0.25          + 0.5
-    // y = 0.5 * (x + lt*0.5)         + 0.5
-    // y = 0.5 * (x - (lt&0.5))       + 0.5
-    __m256d y = _mm256_fmadd_pd(half, _mm256_sub_pd(x, _mm256_and_pd(ltid, half)), half);
-    x = _mm256_div_pd(z, y);
-    z = _mm256_mul_pd(x, x);
-    __m256d u = _mm256_add_pd(z, _mm256_set1_pd(-3.56722798256324312549E1));
-    __m256d t =                  _mm256_set1_pd(-7.89580278884799154124E-1);
-    u = _mm256_fmadd_pd(u, z, _mm256_set1_pd(3.12093766372244180303E2));
-    t = _mm256_fmadd_pd(t, z, _mm256_set1_pd(1.63866645699558079767E1));
-    u = _mm256_fmadd_pd(u, z, _mm256_set1_pd(-7.69691943550460008604E2));
-    t = _mm256_fmadd_pd(t, z, _mm256_set1_pd(-6.41409952958715622951E1));
-    y = _mm256_fmadd_pd(z, _mm256_div_pd(t, u), _mm256_add_pd(half,half));
-    // Multiply log of fraction by log2(e) and base 2 exponent by 1
-    return _mm256_fmadd_pd(x, _mm256_mul_pd(y, _mm256_set1_pd(std::log2(std::exp(1.)))), dbl_e);
-}
-
 __m256d Iterate(__m256d zr, __m256d zi) __attribute__((noinline));
 __m256d Iterate(__m256d zr, __m256d zi)
 {
-    const double escape_radius_squared = 6*6;
-    const int maxiter = 8100;
+    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+    const int maxiter = MAXITER;
     __m256d cr = zr, sr = cr;
     __m256d ci = zi, si = ci;
     __m256d dist = _mm256_set1_pd(0.0), limit = _mm256_set1_pd(escape_radius_squared);
 
     __m128i notescaped = _mm_set1_epi32(-1), one = _mm_set1_epi32(1), zero = _mm_setzero_si128();
     __m128i iter       = _mm_set1_epi32(maxiter);
-
 
     while(!_mm_testz_si128(notescaped, notescaped))
     {
