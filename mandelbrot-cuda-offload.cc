@@ -1,6 +1,7 @@
 #include "common.inc"
 #include "helper_cuda.h"
 
+template<bool WithMoment>
 void __global__ Iterate(double zr, double zi, double xscale, double yscale, double* results)
 {
     const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
@@ -16,8 +17,10 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, doub
     int iter    = maxiter;
     bool act    = true;
 
+    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { act=false; iter=0; }
+
     while(act)
-    for(unsigned n=0; n<10; ++n)
+    for(unsigned n=0; n < 10; ++n)
     {
         double r2 = cr * cr;
         double i2 = ci * ci;
@@ -27,37 +30,54 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, doub
         double ri = cr * ci;
         ci = zi + (ri * 2);
         cr = zr + (r2 - i2);
-        bool moment = iter & (iter-1);
-        iter = (cr == sr && ci == si) ? 0 : iter;
-        sr = moment ? sr : cr;
-        si = moment ? si : ci;
+
+        if(WithMoment && !n)
+        {
+            bool moment = iter & (iter-1);
+            iter = (cr == sr && ci == si) ? 0 : iter;
+            sr = moment ? sr : cr;
+            si = moment ? si : ci;
+        }
     }
-    results[slotno] = iter ? std::log( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * 4 : 0;
+    results[slotno] = iter ? std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
 }
 
 constexpr unsigned npixels = Xres * Yres, nthreads = 128, nblocks = (npixels + nthreads - 1) / nthreads;
 
 int main()
 {
-    double results[npixels], *p = NULL;
+    static double results[npixels], *p = NULL;
     checkCudaErrors(cudaMalloc((void**)&p, sizeof(results))); assert(p != NULL);
 
-    while(GetTime() < 5)
+    bool NeedMoment = true;
+
+    MAINLOOP_START();
+    while(MAINLOOP_GET_CONDITION())
     {
-        std::vector<unsigned> pixels (Xres * Yres);
+        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
-        double zr = -0.743639266077433, zi = 0.131824786875559, scale = 4. * std::pow(2, -std::min(GetTime(),53.)*0.7);
-        double xscale = scale/Yres, yscale = -scale/Yres;
-
-        Iterate<<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, p);
+        if(NeedMoment)
+            Iterate<true><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, p);
+        else
+            Iterate<false><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, p);
 
         checkCudaErrors(cudaMemcpy(results, p, sizeof(results), cudaMemcpyDeviceToHost));
 
+        unsigned n_inside = std::count_if(results, results+npixels, std::bind1st(std::equal_to<double>(), 0.));
+        NeedMoment = n_inside >= (Xres*Yres)/1024;
+
+        std::vector<unsigned> pixels (Xres * Yres);
+
+        #pragma omp parallel for
         for(unsigned y=0; y<Yres; ++y)
             for(unsigned x=0; x<Xres; ++x)
                 pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]);
 
-        display.Put(pixels);
+        /*static std::FILE* fp = std::fopen("/mnt/arch/mandelbrot-4K.bin", "wb");
+        std::fwrite(&pixels[0], Xres*Yres, sizeof(unsigned), fp);
+        std::fflush(fp);*/
+
+        MAINLOOP_PUT_RESULT(pixels);
     }
-    std::printf("\n%u frames rendered\n", display.frame);
+    MAINLOOP_FINISH();
 }

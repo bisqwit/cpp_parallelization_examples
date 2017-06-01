@@ -1,44 +1,104 @@
 #include "common.inc"
 
+double mylog2(double value)
+{
+    constexpr int mantissa_bits = 52, exponent_bias = 1022;
+    const double  half         = 0.5;
+    std::uint64_t half_bits    = reinterpret_cast<const std::uint64_t&>(half);
+    int e,lt;
+    uint64_t m;
+    double x, dbl_e, z, y, u, t;
+    m = reinterpret_cast<const std::uint64_t&>(value);
+    e = m >> mantissa_bits;
+    m &= std::uint64_t((1ull << mantissa_bits)-1);
+    m |= half_bits;
+    x = reinterpret_cast<const double&>(m);
+    lt = (x < 1/std::sqrt(2.)) ? -1 : 0;
+    dbl_e = e + lt - exponent_bias;
+    z = x - (half + (lt ? 0. : half));
+    y = half * (x - (lt ? half : 0.)) + half;
+    x = z/y;
+    z = x*x;
+    u = z   + -3.56722798512324312549E1;
+    t =       -7.89580278884799154124E-1;
+    u = u*z +  3.12093766372244180303E2;
+    t = t*z +  1.63866645699558079767E1;
+    u = u*z + -7.69691943550460008604E2;
+    t = t*z + -6.41409952958715622951E1;
+    y = z* (t/u) + (half+half);
+    return x*(y*std::log2(std::exp(1.))) + dbl_e;
+}
+
+template<bool WithMoment>
 double Iterate(double zr, double zi)
 {
     const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
     const int maxiter = MAXITER;
     double cr = zr, sr = cr;
     double ci = zi, si = ci;
-    double dist = 0;
-    int iter    = maxiter;
+    double dist;
+    int iter = maxiter, notescaped = -1;
 
-    while(iter)
+    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+
+    while(notescaped)
     {
         double r2 = cr * cr;
         double i2 = ci * ci;
         dist = r2 + i2;
-        if(dist >= escape_radius_squared) break;
-        --iter;
+
+        notescaped &= ((iter != 0) & (dist < escape_radius_squared)) ? -1 : 0;
+        iter += notescaped;
+
         double ri = cr * ci;
         ci = zi + (ri * 2);
         cr = zr + (r2 - i2);
-        if(iter&(iter-1)) { if(cr == sr && ci == si) { iter=0; }}
-        else              { sr = cr; si = ci; }
+
+        if(WithMoment)
+        {
+            bool notmoment = iter & (iter-1);
+            iter = (cr == sr && ci == si) ? 0 : iter;
+            sr = notmoment ? sr : cr;
+            si = notmoment ? si : ci;
+        }
     }
-    return iter ? std::log( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * 4 : 0;
+    return iter ? mylog2( maxiter-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
 }
+
+#include <cilk/reducer_opadd.h>
 
 int main()
 {
-    while(GetTime() < 5)
+    bool NeedMoment = true;
+
+    MAINLOOP_START();
+    while(MAINLOOP_GET_CONDITION())
     {
         std::vector<unsigned> pixels (Xres * Yres);
 
-        double zr = -0.743639266077433, zi = 0.131824786875559, scale = 4. * std::pow(2, -std::min(GetTime(),53.)*0.7);
-        double xscale = scale/Yres, yscale = -scale/Yres;
+        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
+
+        cilk::reducer<cilk::op_add<unsigned>> n_inside(0);
 
         _Cilk_for(unsigned y=0; y<Yres; ++y)
-            for(unsigned x=0; x<Xres; ++x)
-                pixels[y*Xres + x] = Color(x,y,Iterate( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) ));
+            if(NeedMoment)
+                for(unsigned x=0; x<Xres; ++x)
+                {
+                    double v = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                    if(v == 0.) ++*n_inside;
+                    pixels[y*Xres + x] = Color(x,y, v);
+                }
+            else
+                for(unsigned x=0; x<Xres; ++x)
+                {
+                    double v = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                    if(v == 0.) ++*n_inside;
+                    pixels[y*Xres + x] = Color(x,y, v);
+                }
 
-        display.Put(pixels);
+        NeedMoment = n_inside.get_value() >= (Xres*Yres)/1024;
+
+        MAINLOOP_PUT_RESULT(pixels);
     }
-    std::printf("\n%u frames rendered\n", display.frame);
+    MAINLOOP_FINISH();
 }

@@ -20,8 +20,16 @@ union my256 { struct { __m128d d[2]; }; struct { __m128i i[2]; };
 #define _mm256_mul_pd(x,y)             _mm256_dualop(x,y,_mm_mul_pd,d)
 #define _mm256_div_pd(x,y)             _mm256_dualop(x,y,_mm_div_pd,d)
 #define _mm256_andnot_pd(x,y)          _mm256_dualop(x,y,_mm_andnot_pd,d)
+#define _mm256_cmp_pd_CMP_GE_OQ(x,y)   _mm256_dualop(x,y,_mm_cmpge_pd,d)
 #define _mm256_cmp_pd_CMP_LT_OQ(x,y)   _mm256_dualop(x,y,_mm_cmplt_pd,d)
 #define _mm256_cmp_pd_CMP_EQ_OQ(x,y)   _mm256_dualop(x,y,_mm_cmpeq_pd,d)
+
+#ifdef __FMA4__
+ #define _mm256_fmadd_pd(x,y,z)         ([](const my256& a, const my256& b, const my256& c) { return my256(_mm_macc_pd(a.d[1],b.d[1],c.d[1]), _mm_macc_pd(a.d[0],b.d[0],c.d[0])); })(x,y,z)
+#elif defined(__FMA__)
+ #define _mm256_fmadd_pd(x,y,z)         ([](const my256& a, const my256& b, const my256& c) { return my256(_mm_fmadd_pd(a.d[1],b.d[1],c.d[1]), _mm_fmadd_pd(a.d[0],b.d[0],c.d[0])); })(x,y,z)
+#endif
+
 #define _mm256_cmp_pd(x,y,v)           _mm256_cmp_pd##v(x,y)
 #define _mm256_insertf128_si256(x,y,n) ([](my256 xx,__m128i yy,int nn){xx.i[nn] = yy; return xx;}(x,y,n))
 #define _mm256_set1_pd(x)              ([](__m128d v){ return my256(v,v); })(_mm_set1_pd(x))
@@ -29,15 +37,26 @@ union my256 { struct { __m128d d[2]; }; struct { __m128i i[2]; };
 #define _mm256_set1_epi64x(x)          ([](__m128i v){ return my256(v,v); })(_mm_set1_epi64x(x))
 #define _mm256_setzero_si256()         ([](__m128i v){ return my256(v,v); })(_mm_setzero_si128())
 #define _mm256_set_pd(d,c,b,a)         my256(_mm_set_pd(d,c),_mm_set_pd(b,a))
-#define _mm256_extract_epi64(x,n)      ([](const my256& x, unsigned nn) { return _mm_extract_epi64(x.i[nn/2], nn%2); })(x,n)
-#define _mm256_testz_si256(x,y)        (_mm_testz_si128((x).i[0],(y).i[0]) && _mm_testz_si128((x).i[1],(y).i[1]))
+#define _mm256_set_epi64x(d,c,b,a)     my256(_mm_set_epi64x(d,c),_mm_set_epi64x(b,a))
 
 //#define _mm256_cvtepi32_pd(x)          ([](__v4si v) { return _mm256_set_pd(v[3],v[2],v[1],v[0]); })((__v4si)(x))
 
 #define _mm256_cvtepi32_pd(x)          ([](__m128i a) { return my256(_mm_cvtepi32_pd(_mm_srli_si128(a,8)), \
                                                                      _mm_cvtepi32_pd(a)); })(x)
-#define _mm256_cvtepi32_epi64(x)       ([](__m128i a) { return my256(_mm_cvtepi32_epi64(_mm_srli_si128(a,8)), \
-                                                                     _mm_cvtepi32_epi64(a)); })(x)
+
+ #ifdef __SSE4__
+  #define _mm256_testz_si256(x,y)        (_mm_testz_si128((x).i[0],(y).i[0]) && _mm_testz_si128((x).i[1],(y).i[1]))
+  #define _mm256_extract_epi64(x,n)      ([](const my256& x, unsigned nn) { return _mm_extract_epi64(x.i[nn/2], nn%2); })(x,n)
+  #define _mm256_cvtepi32_epi64(x)       ([](__m128i a) { return my256(_mm_cvtepi32_epi64(_mm_srli_si128(a,8)), \
+                                                                       _mm_cvtepi32_epi64(a)); })(x)
+ #else
+  #define _mm256_cvtepi32_epi64(x)       ([](__v4si v) { return _mm256_set_epi64x(v[3],v[2],v[1],v[0]); })((__v4si)(x))
+  #define _mm256_extract_epi64(x,n)      ([](const my256& x, unsigned nn) { return ((__v2du)x.i[nn/2])[nn%2]; })(x,n)
+  #define _mm256_testz_si256(x,y)        ([](const my256& a, const my256& b) { __m128i i = _mm_and_si128(a.i[0], b.i[0]); \
+                                                                               __m128i j = _mm_and_si128(a.i[1], b.i[1]); \
+                                                                               __v2du k = (__v2du)_mm_or_si128(i,j); \
+                                                                               return (k[0] | k[1]) == 0;  })(x,y)
+ #endif
 #endif
 
 #ifndef __AVX2__
@@ -65,8 +84,8 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
 #define _mm512_castpd_si512(x)         (x)
 #define _mm512_castsi512_pd(x)         (x)
 #define _mm512_castsi512_si256(x)      (x).i[0]
+#define _mm512_extracti64x4_epi64(x,n) (x).i[n]
 #define _mm512_castsi256_si512(x)      my512(_mm256_setzero_si256(), x)
-#define _mm512_extractf256_si512(x,n)  (x).i[n]
 #define _mm512_unaop(x,func,c)         ([](const my512& a)                                 { return my512(func(a.c[1]), func(a.c[0])); })(x)
 #define _mm512_unaiop(x,y,func,c)      ([](const my512& a, int mm)                         { return my512(func(a.c[1],mm), func(a.c[0],mm)); })(x,y)
 #define _mm512_dualop(x,y,func,c)      ([](const my512& a, const my512& b)                 { return my512(func(a.c[1],b.c[1]), func(a.c[0],b.c[0])); })(x,y)
@@ -83,12 +102,14 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
 #define _mm512_and_si512(x,y)          _mm512_dualop(x,y,_mm256_and_si256,i)
 #define _mm512_add_epi64(x,y)          _mm512_dualop(x,y,_mm256_add_epi64,i)
 
+#define _mm512_setzero_pd()            my512(_mm256_setzero_pd(), _mm256_setzero_pd())
 #define _mm512_set1_pd(x)              ([](__m256d v){ return my512(v,v); })(_mm256_set1_pd(x))
 #define _mm512_set1_epi64(x)           ([](__m256i v){ return my512(v,v); })(_mm256_set1_epi64x(x))
 
 #define _mm512_set_pd(h,g,f,e,d,c,b,a)    my512(_mm256_set_pd(h,g,f,e),    _mm256_set_pd(d,c,b,a))
 #define _mm512_set_epi64(h,g,f,e,d,c,b,a) my512(_mm256_set_epi64x(h,g,f,e),_mm256_set_epi64x(d,c,b,a))
 
+#define _mm512_cmp_pd_MM_CMPINT_GE(x,y) ([](const my512& a, const my512& b) { return my512(_mm256_cmp_pd(a.d[1],b.d[1],_CMP_GE_OQ), _mm256_cmp_pd(a.d[0],b.d[0],_CMP_GE_OQ)); })(x,y)
 #define _mm512_cmp_pd_MM_CMPINT_LT(x,y) ([](const my512& a, const my512& b) { return my512(_mm256_cmp_pd(a.d[1],b.d[1],_CMP_LT_OQ), _mm256_cmp_pd(a.d[0],b.d[0],_CMP_LT_OQ)); })(x,y)
 #define _mm512_cmp_pd_MM_CMPINT_EQ(x,y) ([](const my512& a, const my512& b) { return my512(_mm256_cmp_pd(a.d[1],b.d[1],_CMP_EQ_OQ), _mm256_cmp_pd(a.d[0],b.d[0],_CMP_EQ_OQ)); })(x,y)
 #define _mm512_cmp_pd_mask(x,y,v)       _mm512_cmp_pd##v(x,y)
@@ -107,6 +128,9 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
 #define _mm512_cvtepi32_epi64(x)       ([](__m256i a) { return my512(_mm256_cvtepi32_epi64(extract128(a,1)), \
                                                                      _mm256_cvtepi32_epi64(extract128(a,0))); })(x)
 
+#define _mm512_cvtepi64_epi32(x)       ([](__m512i a) { return compose256(_mm256_cvtepi64_epi32(extract256(a,0)), \
+                                                                          _mm256_cvtepi64_epi32(extract256(a,1))); })(x)
+
 #define _mm256_cmp_epi32_MM_CMPINT_NE(x,y) (x) /* ASSUMPTIONS */
 #define _mm256_cmp_epi32_mask(x,y,v)       _mm256_cmp_epi32##v(x,y)
 #define _mm512_mask_mov_pd(x,m,y)          _mm512_triop(x,y,_mm512_cvtepi32_epi64(m), _mm256_blendv_pd, d)
@@ -121,7 +145,7 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
  #endif
 #endif
 
-#ifndef __FMA__
+#if !defined(__FMA4__) && !defined(__FMA__)
  #define _mm256_fmadd_pd(a,b,c) _mm256_add_pd(_mm256_mul_pd(a,b), c)
 #endif
 
@@ -136,6 +160,7 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
   #define _mm256_mask_mov_epi32(a,b,c) _mm512_castsi512_si256(_mm512_mask_mov_epi32(_mm512_castsi256_si512(a),b,_mm512_castsi256_si512(c)))
   #define _mm256_cmp_epi32_mask(a,b,c) _mm512_cmp_epi32_mask(_mm512_castsi256_si512(a),_mm512_castsi256_si512(b),c)
  #endif
+ #define _mm256_cvtepi64_epi32(x) ([](const __v4di& a) { return _mm_set_epi32(a[3],a[2],a[1],a[0]); })((__v4di)(x))
 #endif
 #ifndef __AVX512DQ__
  #ifdef __AVX2__
@@ -157,7 +182,7 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
 
 
 #ifndef __AVX2__
- #define _mm256_blendv_pd(nok,ok,cond) _mm256_or_pd(_mm256_and_pd(cond,ok), _mm256_andnot_pd(cond,nok))
+ #define _mm256_blendv_pd(nok,ok,cond)   _mm256_or_pd(_mm256_and_pd(cond,ok), _mm256_andnot_pd(cond,nok))
  #ifdef __AVX__
   #define _mm256_cvtepi32_epi64(c)       compose256(_mm_cvtepi32_epi64(c), _mm_cvtepi32_epi64(_mm_shuffle_epi32(c,78)))
  #endif
@@ -169,65 +194,3 @@ union my512 { struct { __m256d d[2]; }; struct { __m256i i[2]; };
  #define _mm256_srli_epi64(a,n) compose256(_mm_srli_epi64(extract128(a,0), n), \
                                            _mm_srli_epi64(extract128(a,1), n))
 #endif
-
-inline __m256d _mm256_log2_pd(__m256d x) /* log2(x) for four positive doubles */
-{
-    constexpr int mantissa_bits = 52, exponent_bias = 1022;
-    //return _mm256_set_pd(std::log2(x[3]),std::log2(x[2]),std::log2(x[1]),std::log2(x[0]));
-
-    __m256d half = _mm256_set1_pd(0.5);
-    // x = frexp(x, &e);
-    __m256i e = _mm256_srli_epi64(_mm256_castpd_si256(x), mantissa_bits);
-    __m256i m = _mm256_and_si256(_mm256_castpd_si256(x), _mm256_set1_epi64x((1ull << mantissa_bits)-1));
-    x = _mm256_or_pd(half, _mm256_castsi256_pd(m));
-
-    __m256d ltid = _mm256_cmp_pd(x, _mm256_set1_pd(1/std::sqrt(2.)), _CMP_LT_OQ);
-    __m256i lti = _mm256_castpd_si256(ltid);
-    __m256d dbl_e = _mm256_sub_pd(_mm256_cvtepi64_pd(_mm256_add_epi64(e,lti)), _mm256_set1_pd(exponent_bias));
-
-    __m256d z = _mm256_sub_pd(x, _mm256_add_pd(half, _mm256_andnot_pd(ltid, half)));
-    __m256d y = _mm256_fmadd_pd(half, _mm256_sub_pd(x, _mm256_and_pd(ltid, half)), half);
-    x = _mm256_div_pd(z, y);
-    z = _mm256_mul_pd(x, x);
-    __m256d u = _mm256_add_pd(z, _mm256_set1_pd(-3.56722798256324312549E1));
-    __m256d t =                  _mm256_set1_pd(-7.89580278884799154124E-1);
-    u = _mm256_fmadd_pd(u, z, _mm256_set1_pd(3.12093766372244180303E2));
-    t = _mm256_fmadd_pd(t, z, _mm256_set1_pd(1.63866645699558079767E1));
-    u = _mm256_fmadd_pd(u, z, _mm256_set1_pd(-7.69691943550460008604E2));
-    t = _mm256_fmadd_pd(t, z, _mm256_set1_pd(-6.41409952958715622951E1));
-    y = _mm256_fmadd_pd(z, _mm256_div_pd(t, u), _mm256_add_pd(half,half));
-    // Multiply log of fraction by log2(e) and base 2 exponent by 1
-    return _mm256_fmadd_pd(x, _mm256_mul_pd(y, _mm256_set1_pd(std::log2(std::exp(1.)))), dbl_e);
-}
-
-inline __m512d _mm512_log2_pd(__m512d x) /* log2(x) for eight positive doubles */
-{
-    constexpr int mantissa_bits = 52, exponent_bias = 1022;
-    /*return _mm512_set_pd(std::log2(x[7]),std::log2(x[6]),std::log2(x[5]),std::log2(x[4]),
-                         std::log2(x[3]),std::log2(x[2]),std::log2(x[1]),std::log2(x[0]));*/
-
-    __m512d half = _mm512_set1_pd(0.5);
-    // x = frexp(x, &e);
-    __m512i e = _mm512_srli_epi64(_mm512_castpd_si512(x), mantissa_bits);
-    __m512i m = _mm512_and_si512(_mm512_castpd_si512(x), _mm512_set1_epi64((1ull << mantissa_bits)-1));
-    x = _mm512_or_pd(half, _mm512_castsi512_pd(m));
-
-    __mmask8 lt = _mm512_cmp_pd_mask(x, _mm512_set1_pd(1/std::sqrt(2.)), _MM_CMPINT_LT);
-    __m512d ltid = _mm512_castsi512_pd(_mm512_mask_mov_epi64(_mm512_set1_epi64(0), lt, _mm512_set1_epi64(-1)));
-    __m512i lti = _mm512_castpd_si512(ltid);
-    __m512d dbl_e = _mm512_sub_pd(_mm512_cvtepi64_pd(_mm512_add_epi64(e,lti)), _mm512_set1_pd(exponent_bias));
-
-    __m512d z = _mm512_sub_pd(x, _mm512_add_pd(half, _mm512_andnot_pd(ltid, half)));
-    __m512d y = _mm512_fmadd_pd(half, _mm512_sub_pd(x, _mm512_and_pd(ltid, half)), half);
-    x = _mm512_div_pd(z, y);
-    z = _mm512_mul_pd(x, x);
-    __m512d u = _mm512_add_pd(z, _mm512_set1_pd(-3.56722798512324312549E1));
-    __m512d t =                  _mm512_set1_pd(-7.89580278884799154124E-1);
-    u = _mm512_fmadd_pd(u, z, _mm512_set1_pd(3.12093766372244180303E2));
-    t = _mm512_fmadd_pd(t, z, _mm512_set1_pd(1.63866645699558079767E1));
-    u = _mm512_fmadd_pd(u, z, _mm512_set1_pd(-7.69691943550460008604E2));
-    t = _mm512_fmadd_pd(t, z, _mm512_set1_pd(-6.41409952958715622951E1));
-    y = _mm512_fmadd_pd(z, _mm512_div_pd(t, u), _mm512_add_pd(half,half));
-    // Multiply log of fraction by log2(e) and base 2 exponent by 1
-    return _mm512_fmadd_pd(x, _mm512_mul_pd(y, _mm512_set1_pd(std::log2(std::exp(1.)))), dbl_e);
-}
