@@ -99,7 +99,7 @@ int main()
     return 0;*/
     bool NeedMoment = true;
 
-    MAINLOOP_START();
+    MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
         std::vector<unsigned> pixels (Xres * Yres);

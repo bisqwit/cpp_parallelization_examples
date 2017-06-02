@@ -74,7 +74,7 @@ int main()
 
     bool NeedMoment = true;
 
-    MAINLOOP_START();
+    MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();

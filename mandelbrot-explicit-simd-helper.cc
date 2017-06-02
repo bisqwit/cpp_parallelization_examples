@@ -1,4 +1,6 @@
-#include "common.inc"
+#include <cmath>
+
+#include "defs.inc"
 
 #include <x86intrin.h>
 #include "simd_emu.hh"
@@ -187,80 +189,76 @@ __m256d Iterate(__m256d zr, __m256d zi)
                                                                                                  _mm256_set1_pd(0.5))))))))));
 }
 
-int main()
+bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels)
 {
-    bool NeedMoment = true;
+    #if defined(__AVX2__) || defined(__AVX512F__)
+    constexpr unsigned N=8;
+    #else
+    constexpr unsigned N=4;
+    #endif
 
-    MAINLOOP_START(1);
-    while(MAINLOOP_GET_CONDITION())
+    switch(N)
     {
-        std::vector<unsigned> pixels (Xres * Yres);
-
-        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
-
-        #if defined(__AVX2__) || defined(__AVX512F__)
-        constexpr unsigned N=8;
-        #else
-        constexpr unsigned N=4;
-        #endif
-
-        switch(N)
+        case 4:
         {
-            case 4:
+            __m128i num_zeroes = _mm_setzero_si128();
+
+            //#pragma omp declare reduction(m128:__m128i:omp_out=_mm_add_epi32(omp_in,omp_out))
+            //#pragma omp parallel for schedule(dynamic,2) reduction(m128:num_zeroes) num_threads(1)
+            for(unsigned y=0; y<Yres; ++y)
             {
-                __m128i num_zeroes = _mm_setzero_si128();
-                for(unsigned y=0; y<Yres; ++y)
+                __m256d i = _mm256_set1_pd( zi+yscale*int(y-Yres/2) );
+
+                unsigned* pix = &pixels[y*Xres];
+                for(unsigned x=0; x<Xres/N*N; x += N, pix += N)
                 {
-                    __m256d i = _mm256_set1_pd( zi+yscale*int(y-Yres/2) );
+                    __m256d r = _mm256_fmadd_pd(_mm256_set1_pd(xscale), _mm256_add_pd(_mm256_set_pd(3,2,1,0),
+                                                                                      _mm256_set1_pd(int(x-Xres/2))),
+                                                _mm256_set1_pd(zr));
 
-                    for(unsigned x=0; x<Xres/N*N; x += N)
-                    {
-                        __m256d r = _mm256_fmadd_pd(_mm256_set1_pd(xscale), _mm256_add_pd(_mm256_set_pd(3,2,1,0),
-                                                                                          _mm256_set1_pd(int(x-Xres/2))),
-                                                    _mm256_set1_pd(zr));
+                    __m256d results = NeedMoment ? Iterate<true>(r,i) : Iterate<false>(r,i);
 
-                        __m256d results = NeedMoment ? Iterate<true>(r,i) : Iterate<false>(r,i);
+                    num_zeroes = _mm_sub_epi32(num_zeroes, to128(_mm256_cmp_pd(results, _mm256_setzero_pd(), _CMP_EQ_OQ)));
 
-                        num_zeroes = _mm_sub_epi32(num_zeroes, to128(_mm256_cmp_pd(results, _mm256_setzero_pd(), _CMP_EQ_OQ)));
-
-                        for(unsigned n=0; n<N; ++n) { pixels[y*Xres + x+n] = Color(x+n,y, results[n]); }
-                    }
+                    for(unsigned n=0; n<N; ++n) { pix[n] = Color(x+n,y, results[n]); }
                 }
-                num_zeroes = _mm_add_epi32(num_zeroes, _mm_srli_si128(num_zeroes, 8)); // 0+2, 1+3, 2, 3
-                num_zeroes = _mm_hadd_epi32(num_zeroes, num_zeroes); // 0+2+1+3, ...
-                NeedMoment = _mm_extract_epi32(num_zeroes,0) >= int(Xres*Yres/1024);
-                break;
             }
-
-            case 8:
-            {
-                __m256i num_zeroes = _mm256_setzero_si256();
-                for(unsigned y=0; y<Yres; ++y)
-                {
-                    __m512d i = _mm512_set1_pd( zi+yscale*int(y-Yres/2) );
-
-                    for(unsigned x=0; x<Xres/N*N; x += N)
-                    {
-                        __m512d r = _mm512_fmadd_pd(_mm512_set1_pd(xscale), _mm512_add_pd(_mm512_set_pd(7,6,5,4,3,2,1,0),
-                                                                                          _mm512_set1_pd(int(x-Xres/2))),
-                                                    _mm512_set1_pd(zr));
-
-                        __m512d results = NeedMoment ? Iterate<true>(r,i) : Iterate<false>(r,i);
-
-                        num_zeroes = _mm256_sub_epi32(num_zeroes, to256(_mm512_cmp_pd_mask(results, _mm512_setzero_pd(), _MM_CMPINT_EQ)));
-
-                        for(unsigned n=0; n<N; ++n) { pixels[y*Xres + x+n] = Color(x+n,y, results[n]); }
-                    }
-                }
-                __m128i z128 = _mm_add_epi32(extract128(num_zeroes,0), extract128(num_zeroes,1)); // 0+4, 1+5, 2+6, 3+7
-                z128 = _mm_add_epi32(z128, _mm_srli_si128(z128, 8)); // 0+4+2+6, 1+5+3+7, 2+6, 3+7
-                z128 = _mm_hadd_epi32(z128, z128); // 0+4+2+6+1+5+3+7, ...
-                NeedMoment = _mm_extract_epi32(z128,0) >= int(Xres*Yres/1024);
-                break;
-            }
+            num_zeroes = _mm_add_epi32(num_zeroes, _mm_srli_si128(num_zeroes, 8)); // 0+2, 1+3, 2, 3
+            num_zeroes = _mm_hadd_epi32(num_zeroes, num_zeroes); // 0+2+1+3, ...
+            NeedMoment = _mm_extract_epi32(num_zeroes,0) >= int(Xres*Yres/1024);
+            break;
         }
 
-        MAINLOOP_PUT_RESULT(pixels);
+        case 8:
+        {
+            __m256i num_zeroes = _mm256_setzero_si256();
+
+            //#pragma omp declare reduction(m256:__m256i:omp_out=_mm256_add_epi32(omp_in,omp_out))
+            //#pragma omp parallel for schedule(dynamic,2) reduction(m256:num_zeroes) num_threads(1)
+            for(unsigned y=0; y<Yres; ++y)
+            {
+                __m512d i = _mm512_set1_pd( zi+yscale*int(y-Yres/2) );
+
+                unsigned* pix = &pixels[y*Xres];
+                for(unsigned x=0; x<Xres/N*N; x += N, pix += N)
+                {
+                    __m512d r = _mm512_fmadd_pd(_mm512_set1_pd(xscale), _mm512_add_pd(_mm512_set_pd(7,6,5,4,3,2,1,0),
+                                                                                      _mm512_set1_pd(int(x-Xres/2))),
+                                                _mm512_set1_pd(zr));
+
+                    __m512d results = NeedMoment ? Iterate<true>(r,i) : Iterate<false>(r,i);
+
+                    num_zeroes = _mm256_sub_epi32(num_zeroes, to256(_mm512_cmp_pd_mask(results, _mm512_setzero_pd(), _MM_CMPINT_EQ)));
+
+                    for(unsigned n=0; n<N; ++n) { pix[n] = Color(x+n,y, results[n]); }
+                }
+            }
+            __m128i z128 = _mm_add_epi32(extract128(num_zeroes,0), extract128(num_zeroes,1)); // 0+4, 1+5, 2+6, 3+7
+            z128 = _mm_add_epi32(z128, _mm_srli_si128(z128, 8)); // 0+4+2+6, 1+5+3+7, 2+6, 3+7
+            z128 = _mm_hadd_epi32(z128, z128); // 0+4+2+6+1+5+3+7, ...
+            NeedMoment = _mm_extract_epi32(z128,0) >= int(Xres*Yres/1024);
+            break;
+        }
     }
-    MAINLOOP_FINISH();
+    return NeedMoment;
 }

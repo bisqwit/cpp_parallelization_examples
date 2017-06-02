@@ -1,6 +1,9 @@
-#include "common.inc"
+#include "defs.inc"
+#include <cmath>
+#include <vector>
+#include <atomic>
+#include <thread>
 
-#pragma acc routine
 double mylog2(double value)
 {
     constexpr int mantissa_bits = 52, exponent_bias = 1022;
@@ -10,7 +13,7 @@ double mylog2(double value)
     uint64_t m;
     double x, dbl_e, z, y, u, t;
     m = reinterpret_cast<const std::uint64_t&>(value);
-    e = m >> mantissa_bits; // frexp(). e = exponent, m = mantissa
+    e = m >> mantissa_bits;
     m &= std::uint64_t((1ull << mantissa_bits)-1);
     m |= half_bits;
     x = reinterpret_cast<const double&>(m);
@@ -30,10 +33,8 @@ double mylog2(double value)
     return x*(y*std::log2(std::exp(1.))) + dbl_e;
 }
 
-
-#pragma acc routine
 template<bool WithMoment>
-double Iterate(double zr, double zi)
+double ThreadLoopHelperIterate(double zr, double zi)
 {
     const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
     const int maxiter = MAXITER;
@@ -68,43 +69,5 @@ double Iterate(double zr, double zi)
     return iter ? mylog2( maxiter-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
 }
 
-int main()
-{
-    static double results[Xres*Yres];
-
-    bool NeedMoment = true;
-
-    MAINLOOP_START(1);
-    while(MAINLOOP_GET_CONDITION())
-    {
-        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
-
-        if(NeedMoment)
-        {
-            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
-        else
-        {
-            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
-
-        unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<double>(), 0.));
-        NeedMoment = n_inside >= (Xres*Yres)/1024;
-
-        std::vector<unsigned> pixels (Xres * Yres);
-
-        #pragma acc parallel loop
-        for(unsigned y=0; y<Yres; ++y)
-            for(unsigned x=0; x<Xres; ++x)
-                pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]);
-
-        MAINLOOP_PUT_RESULT(pixels);
-    }
-    MAINLOOP_FINISH();
-}
+template double ThreadLoopHelperIterate<false>(double zr, double zi);
+template double ThreadLoopHelperIterate<true>(double zr, double zi);

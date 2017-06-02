@@ -69,7 +69,7 @@ int main()
 {
     bool NeedMoment = true;
 
-    MAINLOOP_START();
+    MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
         std::vector<unsigned> pixels (Xres * Yres);
@@ -83,17 +83,18 @@ int main()
                 unsigned count_inside = 0;
                 for(unsigned y; (y = y_done++) < Yres; )
                 {
+                    double i = zi+yscale*int(y-Yres/2);
                     if(NeedMoment)
                         for(unsigned x=0; x<Xres; ++x)
                         {
-                            double v = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                            double v = Iterate<true>( zr+xscale*int(x-Xres/2), i );
                             if(v == 0.) ++count_inside;
                             pixels[y*Xres + x] = Color(x,y,v);
                         }
                     else
                         for(unsigned x=0; x<Xres; ++x)
                         {
-                            double v = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                            double v = Iterate<false>( zr+xscale*int(x-Xres/2), i );
                             if(v == 0.) ++count_inside;
                             pixels[y*Xres + x] = Color(x,y,v);
                         }

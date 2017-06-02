@@ -71,7 +71,7 @@ int main()
 {
     bool NeedMoment = true;
 
-    MAINLOOP_START();
+    MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
         std::vector<unsigned> pixels (Xres * Yres);
@@ -81,20 +81,23 @@ int main()
         cilk::reducer<cilk::op_add<unsigned>> n_inside(0);
 
         _Cilk_for(unsigned y=0; y<Yres; ++y)
+        {
+            double i = zi+yscale*int(y-Yres/2);
             if(NeedMoment)
                 for(unsigned x=0; x<Xres; ++x)
                 {
-                    double v = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                    double v = Iterate<true>( zr+xscale*int(x-Xres/2), i );
                     if(v == 0.) ++*n_inside;
                     pixels[y*Xres + x] = Color(x,y, v);
                 }
             else
                 for(unsigned x=0; x<Xres; ++x)
                 {
-                    double v = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
+                    double v = Iterate<false>( zr+xscale*int(x-Xres/2), i );
                     if(v == 0.) ++*n_inside;
                     pixels[y*Xres + x] = Color(x,y, v);
                 }
+        }
 
         NeedMoment = n_inside.get_value() >= (Xres*Yres)/1024;
 
