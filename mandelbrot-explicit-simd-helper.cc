@@ -53,12 +53,10 @@ __m512d Iterate(__m512d zr, __m512d zi)
 
     __m256i notescaped = to256(_mm512_kand(
                                _mm512_cmp_pd_mask(
-                                   _mm512_fmadd_pd(i2, _mm512_fmadd_pd(i2, _mm512_set1_pd(8), _mm512_set1_pd(-3)),  // i2*(i*i2-3) + (
-                                                       _mm512_mul_pd(cr,                                            // cr*(
-                                                       _mm512_fmadd_pd(cr,                                          // cr*(
-                                                       _mm512_fmadd_pd(r2, _mm512_set1_pd(8),                       // r2*8+(
-                                                       _mm512_fmadd_pd(i2, _mm512_set1_pd(16), _mm512_set1_pd(-3))),// 16*i2-3))
-                                                       _mm512_set1_pd(1)))),                                        // +1)))
+                                   _mm512_fmadd_pd(i2,
+                                       _mm512_fmadd_pd(i2, _mm512_set1_pd(8),
+                                                       _mm512_fmadd_pd(r2, _mm512_set1_pd(16), _mm512_set1_pd(-3))),
+                                       _mm512_fmadd_pd(r2, _mm512_fmadd_pd(r2, _mm512_set1_pd(8), _mm512_set1_pd(-3)), cr)),
                                    _mm512_set1_pd(3./32), _MM_CMPINT_GE),
                                _mm512_cmp_pd_mask(
                                    _mm512_fmadd_pd(_mm512_add_pd(cr,_mm512_set1_pd(1.)),_mm512_add_pd(cr,_mm512_set1_pd(1.)), i2),
@@ -144,12 +142,10 @@ __m256d Iterate(__m256d zr, __m256d zi)
 
     __m128i notescaped = to128(_mm256_and_pd(
                                _mm256_cmp_pd(
-                                   _mm256_fmadd_pd(i2, _mm256_fmadd_pd(i2, _mm256_set1_pd(8), _mm256_set1_pd(-3)),
-                                                       _mm256_mul_pd(cr,
-                                                       _mm256_fmadd_pd(cr,
-                                                       _mm256_fmadd_pd(r2, _mm256_set1_pd(8),
-                                                       _mm256_fmadd_pd(i2, _mm256_set1_pd(16), _mm256_set1_pd(-3))),
-                                                       _mm256_set1_pd(1)))),
+                                   _mm256_fmadd_pd(i2,
+                                       _mm256_fmadd_pd(i2, _mm256_set1_pd(8),
+                                                       _mm256_fmadd_pd(r2, _mm256_set1_pd(16), _mm256_set1_pd(-3))),
+                                       _mm256_fmadd_pd(r2, _mm256_fmadd_pd(r2, _mm256_set1_pd(8), _mm256_set1_pd(-3)), cr)),
                                    _mm256_set1_pd(3./32), _CMP_GE_OQ),
                                _mm256_cmp_pd(
                                    _mm256_fmadd_pd(_mm256_add_pd(cr,_mm256_set1_pd(1.)),_mm256_add_pd(cr,_mm256_set1_pd(1.)), i2),
