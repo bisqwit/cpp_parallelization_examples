@@ -1,0 +1,196 @@
+340	#include "common.inc"
+100	
+1600	/* Vectorized log2() */
+1600	template<std::size_t N>
+100`1610*	double mylog2(double value)
+1610	std::array<double,N> plog2(const std::array<double, N>& value)
+100	{
+110	    constexpr int mantissa_bits = 52, exponent_bias = 1022;
+110	    const double  half         = 0.5;
+110	    std::uint64_t half_bits    = reinterpret_cast<const std::uint64_t&>(half);
+110`1620*	    int e,lt;
+1620	    std::array<int,N> e, lt;
+110`1621*	    uint64_t m;
+1621	    std::array<uint64_t,N> m;
+110`1622*	    double x, dbl_e, z, y, u, t;
+1622	    std::array<double,N> x, dbl_e, z, y, u, t, result;
+2000`3000	    `0:#pragma omp simd`1:#pragma simd
+110`1623*	    m = reinterpret_cast<const std::uint64_t&>(value);
+1623`1680	    `1:for(unsigned n=0; n<N; ++n) {   `012:m[n] = reinterpret_cast<const std::uint64_t&>(value[n]);
+110`1624*	    e = m >> mantissa_bits; // frexp(). e = exponent, m = mantissa
+1624`1660	    `1:                                `012:e[n] = m[n] >> mantissa_bits;
+110`1625*	    m &= std::uint64_t((1ull << mantissa_bits)-1);
+1625`1660	    `1:                                `012:m[n] &= std::uint64_t((1ull << mantissa_bits)-1);
+110`1626*	    m |= half_bits;
+1626`1660	    `1:                                `012:m[n] |= half_bits;
+110`1627*	    x = reinterpret_cast<const double&>(m);
+1627`1660`1683	    `12:                                `012:x[n] = reinterpret_cast<const double&>(m[n]);`2: }
+2010`3010	    `0:#pragma omp simd`1:#pragma simd
+110`1628*	    lt = (x < 1/std::sqrt(2.)) ? -1 : 0;
+1628`1683	    `1:for(unsigned n=0; n<N; ++n) {   `012:lt[n] = (x[n] < 1/std::sqrt(2.)) ? -1 : 0;
+110`1629*	    dbl_e = e + lt - exponent_bias;
+1629`1670	    `1:                                `012:dbl_e[n] = e[n] + lt[n] - exponent_bias;
+110`1630*	    z = x - (half + (lt ? 0. : half));
+1630`1670	    `1:                                `012:z[n] = x[n] - (half + (lt[n] ? 0. : half));
+110`1631*	    y = half * (x - (lt ? half : 0.)) + half;
+1631`1670	    `1:                                `012:y[n] = half * (x[n] - (lt[n] ? half : 0.)) + half;
+110`1632*	    x = z/y;
+1632`1670	    `1:                                `012:x[n] = z[n]/y[n];
+110^`1633*	    z = x*x;
+1633`1670	    `1:                                `012:z[n] = x[n]*x[n];
+110`1634*	    u = z   + -3.56722798512324312549E1;
+1634`1670	    `1:                                `012:u[n] = z[n]      + -3.56722798512324312549E1;
+110`1635*	    t =       -7.89580278884799154124E-1;
+1635`1670	    `1:                                `012:t[n] =             -7.89580278884799154124E-1;
+111^^`1636*	    u = u*z +  3.12093766372244180303E2;
+1636`1670	    `1:                                `012:u[n] = u[n]*z[n] +  3.12093766372244180303E2;
+111^^`1637*	    t = t*z +  1.63866645699558079767E1;
+1637`1670	    `1:                                `012:t[n] = t[n]*z[n] +  1.63866645699558079767E1;
+112^^`1638*	    u = u*z + -7.69691943550460008604E2;
+1638`1670	    `1:                                `012:u[n] = u[n]*z[n] + -7.69691943550460008604E2;
+112^^`1639*	    t = t*z + -6.41409952958715622951E1;
+1639`1670	    `1:                                `012:t[n] = t[n]*z[n] + -6.41409952958715622951E1;
+110`1640*	    y = z* (t/u) + (half+half);
+1640`1670	    `1:                                `012:y[n] = z[n]* (t[n]/u[n]) + (half+half);
+110`1641*	    return x*(y*std::log2(std::exp(1.))) + dbl_e;
+1641`1670`1686	    `12:                                `012:result[n] = x[n]*(y[n]*std::log2(std::exp(1.))) + dbl_e[n];`2: }
+1650	    return result;
+100	}
+10	
+400`1100*	template<bool WithMoment>
+1100	template<bool WithMoment, unsigned N>
+10`80`1105*	`0:int`1:double`01: Iterate(double zr, double zi)
+1105	std::array<double,N> Iterate(const double* zr, const std::array<double,N>& zi)
+10	{
+20	    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+20	    const int maxiter = MAXITER;
+20`50`1110*	    double cr = zr`1:, sr = cr`01:;
+1110	    std::array<double,N> cr, ci = zi;
+1120	
+2020`3020	    `0:#pragma omp simd`1:#pragma simd
+1121	    for(unsigned n=0; n<N; ++n) { cr[n] = zr[n]; }
+1120	
+20^`50`1115*	    double ci = zi`1:, si = ci`01:;
+1115^	    std::array<double,N> sr = cr, si = ci;
+20`1130*	    double dist;
+1130	    std::array<double,N> dist{};
+20`60`1135*	    `0:int iter = 0;`1:int iter = maxiter, notescaped = -1;
+1135	    std::array<int,N> notescaped, iter, notmoment;
+1140	
+1140	    std::array<double,N> r2,i2,ri;
+70	
+2070`3030	    `0:#pragma omp simd`1:#pragma simd
+1400	    for(unsigned n=0; n<N; ++n) {
+1410	        r2[n] = cr[n] * cr[n];
+1410^	        i2[n] = ci[n] * ci[n];
+70`1420*	    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+1420	        notescaped[n] = ((cr[n]*(1+cr[n]*(8*r2[n]+(16*i2[n]-3)))+i2[n]*(8*i2[n]-3) >= 3./32) & (((cr[n]+1)*(cr[n]+1)+i2[n]) >= 1./16)) ? -1 : 0;
+1425	        iter[n] = maxiter & notescaped[n];
+1405	    }
+20	
+20`65`1358	    `02:for(;;)`1:while(notescaped)
+20	    {
+1355	        int n_escaped = 0;
+1355	        for(unsigned n=0; n<N; ++n) n_escaped += notescaped[n];
+1355	        if(!n_escaped) break;
+1350	
+30`1340*	        double r2 = cr * cr;
+30^`1340*	        double i2 = ci * ci;
+2060`3040	        `0:#pragma omp simd`1:#pragma simd
+30`1200`1300*	        `0:dist = r2 + i2;`12:dist[n] = notescaped[n] ? r2[n] + i2[n] : dist[n];
+1300	        for(unsigned n=0; n<N; ++n) {   dist[n] = notescaped[n] ? r2[n] + i2[n] : dist[n];
+30	
+30`66`1210`1310	        `3:                                `0:if(iter == maxiter || dist >= escape_radius_squared) break;`1:notescaped &= ((iter != 0) & (dist < escape_radius_squared)) ? -1 : 0;`23:notescaped[n] &= (((iter[n] != 0) & (dist[n] < escape_radius_squared)) ? -1 : 0);
+30`66`1210`1310	        `3:                                `0:++iter;`1:iter += notescaped;`23:iter[n] += notescaped[n];
+30	
+30`1220`1320	        `2:                                `0:double ri = cr * ci;`12:ri[n] = cr[n] * ci[n];
+30`1220`1320	        `2:                                `0:ci = zi + (ri * 2);`12:ci[n] = zi[n] + (ri[n] * 2);
+30^`1220`1320	        `2:                                `0:cr = zr + (r2 - i2);`12:cr[n] = zr[n] + (r2[n] - i2[n]);
+55	
+410`1330	        `1:                                `01:if(WithMoment)
+410`1330	        `1:                                `01:{
+55`430`1230`1330	        `3:                                `1234:    `01:bool notmoment = iter & (iter-1);`23:notmoment[n] = iter[n] & (iter[n]-1);
+55`68`430`1230`1330	        `4:                                `2345:    `0:if(cr == sr && ci == si) iter = maxiter;`12:iter = (cr == sr && ci == si) ? 0 : iter;`34:iter[n] &= ((cr[n] != sr[n]) | (ci[n] != si[n])) ? -1 : 0;
+55`68`430`1230`1330	        `4:                                `2345:    `0:if(!notmoment) sr = cr;`12:sr = notmoment ? sr : cr;`34:sr[n] = notmoment[n] ? sr[n] : cr[n];
+55^`68`430`1230`1330	        `4:                                `2345:    `0:if(!notmoment) si = ci;`12:si = notmoment ? si : ci;`34:si[n] = notmoment[n] ? si[n] : ci[n];
+420`1330	        `1:                                `01:}
+1345	                                        r2[n] = cr[n] * cr[n];
+1345^	                                        i2[n] = ci[n] * ci[n];
+1305	                                    }
+20	    }
+40`69`85`1500`1530*	    `0:return iter;`1:return maxiter-iter;`3:// `23:return iter ? mylog2( maxiter-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+1500	    std::array<double,N> result;
+1510	    result = plog2(dist);
+2050`3050	    `0:#pragma omp simd`1:#pragma simd
+1510	    for(unsigned n=0; n<N; ++n) result[n] /= 2;
+1520^^	    result = plog2(result);
+2040`3060	    `0:#pragma omp simd`1:#pragma simd
+1520^^	    for(unsigned n=0; n<N; ++n) result[n] = maxiter - iter[n] + 1 - result[n];
+1520^^^^	    result = plog2(result);
+2030`3070	    `0:#pragma omp simd`1:#pragma simd
+1520^^^^	    for(unsigned n=0; n<N; ++n) result[n] = iter[n] ? (result[n] * (4/std::log2(std::exp(1.)))) : 0;
+1500	    return result;
+10	}
+200	
+200	int main()
+200	{
+440	    bool NeedMoment = true;
+440	
+300	    MAINLOOP_START(1);
+210`300	    while(`0:...`1:MAINLOOP_GET_CONDITION()`01:)
+210	    {
+275	        std::vector<unsigned> pixels (Xres * Yres);
+270	
+220`310	        double zr, zi, xscale, yscale; `0:/* TODO set these variables */`1:MAINLOOP_SET_COORDINATES();
+220	
+1000	        constexpr unsigned N = 8;
+1000	
+471	        unsigned n_inside = 0;
+470	
+220	        for(unsigned y=0; y<Yres; ++y)
+220	        {
+1010	            std::array<double,Xres> r;
+1010^	            std::array<double,N>    i;
+1010^^	            std::array<double,Xres> results;
+250`1020*	            double i = zi+yscale*int(y-Yres/2);
+2080`3080	            `0:#pragma omp simd`1:#pragma simd
+1020	            for(unsigned n=0; n<N; ++n)    { i[n] = zi+yscale*int(y-Yres/2); }
+2090`3090	            `0:#pragma omp simd`1:#pragma simd
+1025^	            for(unsigned x=0; x<Xres; ++x) { r[x] = zr+xscale*int(x-Xres/2); }
+1065	
+1065	            double* resptr = &results[0];
+450	            if(NeedMoment)
+230^^`455`1030*	            `12:    `012:for(unsigned x=0; x<Xres; ++x)
+1030	                for(unsigned x=0; x<Xres/N*N; x += N)
+230`455`1060*	            `12:    `012:{
+260^^^`455`465`1050*	            `12:    `012:    double v = Iterate`2:<true>`012:( zr+xscale*int(x-Xres/2), i );
+1050	                    for(auto d: Iterate<true,N>(&r[x], i))
+1055	                        *resptr++ = d;
+475`1040*	                    n_inside += v == 0.;
+280`455`1040*	            `12:    `012:    pixels[y*Xres + x] = Color(x,y, v);
+230`455`1060*	            `12:    `012:}
+458	            else
+1080^^^^	                for(unsigned x=0; x<Xres/N*N; x += N)
+1080^^^^	                    for(auto d: Iterate<false,N>(&r[x], i))
+1080^^^^	                        *resptr++ = d;
+460^^^^^^`1070*	                for(unsigned x=0; x<Xres; ++x)
+460^^^^^^`1070*	                {
+460^^^^^^`467`1070*	                    double v = Iterate`1:<false>`01:( zr+xscale*int(x-Xres/2), i );
+476^^^^^^^`1070*	                    n_inside += v == 0.;
+460^^^^^^`1070*	                    pixels[y*Xres + x] = Color(x,y, v);
+460^^^^^^`1070*	                }
+1090	
+2095`2100`3110*	            #pragma omp simd`0: `01: reduction(+:n_inside)
+1090`1095`3100	            for(unsigned x=0; x<Xres; ++x) {`12: n_inside += (results[x] == 0.);`2: }
+3120	            #pragma simd
+1090`1095`3100*	                                          `1:   pixels[y*Xres + x] = Color(x,y, results[x]);`01: }
+3100`3199	            for(unsigned x=0; x<Xres; ++x) { pixels[y*Xres + x] = Color(x,y, results[x]); }
+220	        }
+477	
+477	        NeedMoment = n_inside >= (Xres*Yres)/1024;
+290	
+290`320	        `0:/* TODO handle pixels */`1:MAINLOOP_PUT_RESULT(pixels);
+210	    }
+330	    MAINLOOP_FINISH();
+200	}
+	

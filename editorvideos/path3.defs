@@ -1,0 +1,63 @@
+<?php
+
+define('IN_FILE', 'path3.lst');
+define('SAVE_FILE', 'mandlt.cc');
+define('SHOW_PLAN',   true);
+define('FINAL_OUTPUT', false);
+
+define('PLAN_SHOW_OUTSIDES', 3); // Max 3 lines outside visible area
+
+define('MAX_LEVEL', 99900);
+define('DEFAULT_SPEED', chr(255).chr(255).chr(23)); // Default speed: 23/16
+define('COMMENT_SPEED', chr(255).chr(255).chr(9)); // 9/16
+
+define('ATLAST', "ÿÿd\r".DELAY100s."ÿÿx\r\rexit\r\r");
+
+define('FORCE_SPEED', false);
+#define('FORCE_SPEED', 4);
+
+$screens = Array
+(
+  #        textdims  font  double c64
+  10   => [''."\r".'-'.RT."\r".SF1."116 50\r",         116,50, 8,8, 0,0 ],
+  130  => [SF1."132 50\r",                               132,50, 8,8, 0,0 ],
+); 
+
+$line_anchor = Array
+(
+  # Line number to make the first visible line on screen,
+  # relative to the first line that gets edited
+  110 => 45,
+  120 => 39,
+  130 => 32,
+  185 => 17,
+  200 => 1,
+  210 => 14,
+  215 => 46,
+  220 => 22,
+  300 => 0,
+  
+  310 => 8,
+ # 350 => 30,
+);
+
+
+$selections = Array
+(
+);
+
+$turbo_ranges = Array
+(
+  10 => 1, 11 => 1, 12 => 1,
+);
+
+// Delay performed before this number
+$bigdelay = Array(
+  100, //
+  185, // Before #pragma teams is added
+  199, // pause
+  200, // Begin OpenACC 
+  299, // End OpenACC
+  300, // Begin Cuda
+);
+

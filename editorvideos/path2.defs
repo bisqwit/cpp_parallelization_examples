@@ -1,0 +1,53 @@
+<?php
+
+define('IN_FILE', 'path2.lst');
+define('SAVE_FILE', 'mandlt.cc');
+define('SHOW_PLAN',   true);
+define('FINAL_OUTPUT', false);
+
+define('PLAN_SHOW_OUTSIDES', 3); // Max 3 lines outside visible area
+
+define('MAX_LEVEL', 99900);
+define('DEFAULT_SPEED', chr(255).chr(255).chr(23)); // Default speed: 23/16
+define('COMMENT_SPEED', chr(255).chr(255).chr(9)); // 9/16
+
+define('ATLAST', "ÿÿd\r".DELAY100s."ÿÿx\r\rexit\r\r");
+
+define('FORCE_SPEED', false);
+#define('FORCE_SPEED', 4);
+
+$screens = Array
+(
+  #        textdims  font  double c64
+  10   => [''."\r".'-'.RT."\r".SF1."116 50\r",         116,50, 8,8, 0,0 ],
+  #1120 => ['',                                            146,60, 8,8, 0,0 ],
+); 
+
+$line_anchor = Array
+(
+  # Line number to make the first visible line on screen,
+  # relative to the first line that gets edited
+  100 => 12
+);
+
+
+$selections = Array
+(
+  360 => Array(0 => 'count_inside'),
+);
+
+$turbo_ranges = Array
+(
+  10 => 1, 11 => 1, 12 => 1,
+);
+
+// Delay performed before this number
+$bigdelay = Array(
+  101,      // OpenMP threading
+  200,210,  // Cilkplus
+  220,      // Cilkplus reducer
+  292,      // Cilkplus done,
+  300,      // C++11 threads
+  400,      // End
+);
+

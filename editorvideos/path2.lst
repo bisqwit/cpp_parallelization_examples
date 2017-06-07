@@ -1,0 +1,119 @@
+12	#include "common.inc"
+12	
+12	double mylog2(double value)
+12	{
+12	    constexpr int mantissa_bits = 52, exponent_bias = 1022;
+12	    const double  half         = 0.5;
+12	    std::uint64_t half_bits    = reinterpret_cast<const std::uint64_t&>(half);
+12	    int e,lt;
+12	    uint64_t m;
+12	    double x, dbl_e, z, y, u, t;
+12	    m = reinterpret_cast<const std::uint64_t&>(value);
+12	    e = m >> mantissa_bits; // frexp(). e = exponent, m = mantissa
+12	    m &= std::uint64_t((1ull << mantissa_bits)-1);
+12	    m |= half_bits;
+12	    x = reinterpret_cast<const double&>(m);
+12	    lt = (x < 1/std::sqrt(2.)) ? -1 : 0;
+12	    dbl_e = e + lt - exponent_bias;
+12	    z = x - (half + (lt ? 0. : half));
+12	    y = half * (x - (lt ? half : 0.)) + half;
+12	    x = z/y;
+12	    z = x*x;
+12	    u = z   + -3.56722798512324312549E1;
+12	    t =       -7.89580278884799154124E-1;
+12	    u = u*z +  3.12093766372244180303E2;
+12	    t = t*z +  1.63866645699558079767E1;
+12	    u = u*z + -7.69691943550460008604E2;
+12	    t = t*z + -6.41409952958715622951E1;
+12	    y = z* (t/u) + (half+half);
+12	    return x*(y*std::log2(std::exp(1.))) + dbl_e;
+12	}
+11	
+11	template<bool WithMoment>
+11	double Iterate(double zr, double zi)
+11	{
+11	    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
+11	    const int maxiter = MAXITER;
+11	    double cr = zr, sr = cr;
+11	    double ci = zi, si = ci;
+11	    double dist;
+11	    int iter = maxiter, notescaped = -1;
+11	
+11	    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+11	
+11	    while(notescaped)
+11	    {
+11	        double r2 = cr * cr;
+11	        double i2 = ci * ci;
+11	        dist = r2 + i2;
+11	
+11	        notescaped &= ((iter != 0) & (dist < escape_radius_squared)) ? -1 : 0;
+11	        iter += notescaped;
+11	
+11	        double ri = cr * ci;
+11	        ci = zi + (ri * 2);
+11	        cr = zr + (r2 - i2);
+11	
+11	        if(WithMoment)
+11	        {
+11	            bool notmoment = iter & (iter-1);
+11	            iter = (cr == sr && ci == si) ? 0 : iter;
+11	            sr = notmoment ? sr : cr;
+11	            si = notmoment ? si : ci;
+11	        }
+11	    }
+11	    return iter ? mylog2( maxiter-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+11	}
+10	
+291`292`300*	#include <cilk/reducer_opadd.h>
+290`300*	
+10	int main()
+10	{
+10	    bool NeedMoment = true;
+10	
+10	    MAINLOOP_START(1);
+10	    while(MAINLOOP_GET_CONDITION())
+10	    {
+10	        std::vector<unsigned> pixels (Xres * Yres);
+10	
+10	        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
+10	
+10`220`310*	        `0:unsigned n_inside = 0;`1:cilk::reducer<cilk::op_add<unsigned>> n_inside(0);
+310	        std::atomic<unsigned>    n_inside{0}, y_done{0};
+305	        std::vector<std::thread> threads;
+10`100	
+101`200*	        #pragma omp parallel for schedule(dynamic) reduction(+:n_inside)
+330	        for(unsigned n=0; n<8; ++n)
+330	            threads.emplace_back([&](){
+360	                unsigned count_inside = 0;
+10`210`320*	        `0:for`1:_Cilk_for`01:(unsigned y=0; y<Yres; ++y)
+320`350	        `1:        `01:for(unsigned y; (y = y_done++) < Yres; )
+10`350	        `1:        `01:{
+10`350	        `1:        `01:    double i = zi+yscale*int(y-Yres/2);
+10`350	        `1:        `01:    if(NeedMoment)
+10`350	        `1:        `01:        for(unsigned x=0; x<Xres; ++x)
+10`350	        `1:        `01:        {
+10`350	        `1:        `01:            double v = Iterate<true>( zr+xscale*int(x-Xres/2), i );
+10`230`350`380	        `23:        `0123:            `0:n_inside += v == 0.;`12:if(v == 0.) ++*n_inside;`3:if(v == 0.) ++count_inside;
+10`350	        `1:        `01:            pixels[y*Xres + x] = Color(x,y, v);
+10`350	        `1:        `01:        }
+10`350	        `1:        `01:    else
+10`350	        `1:        `01:        for(unsigned x=0; x<Xres; ++x)
+10`350	        `1:        `01:        {
+10`350	        `1:        `01:            double v = Iterate<false>( zr+xscale*int(x-Xres/2), i );
+10`235`350`390	        `23:        `0123:            `0:n_inside += v == 0.;`12:if(v == 0.) ++*n_inside;`3:if(v == 0.) ++count_inside;
+10`350	        `1:        `01:            pixels[y*Xres + x] = Color(x,y, v);
+10`350	        `1:        `01:        }
+10`350	        `1:        `01:}
+370	                n_inside += count_inside;
+340	            });
+395	
+395	        for(auto& t: threads) t.join();
+10	
+10`240`315	        `02:NeedMoment = n_inside >= (Xres*Yres)/1024;`1:NeedMoment = n_inside.get_value() >= (Xres*Yres)/1024;
+10	
+10	        MAINLOOP_PUT_RESULT(pixels);
+10	    }
+10`400	    MAINLOOP_FINISH();
+10	}
+10	
