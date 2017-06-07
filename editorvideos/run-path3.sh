@@ -1,6 +1,6 @@
-    php new.php path2.defs > inputter.dat
+    php new.php path3.defs > inputter.dat
 
-    rm capture; ln output/path2 -s capture
+    rm capture; ln output/path3 -s capture
     rm capture/e_*.avi capture/inputter_*.avi
     
     #cd ~/qbexample/

@@ -144,7 +144,8 @@
 =Type 		0F
 
 # STL keywords
-=STLkw		06
+#=STLkw		06
+=STLkw		07
 
 # All other identifiers
 =Identifier	07
@@ -448,7 +449,7 @@ done
 	"distribute"	openmp_keyword_known2
 	"declare"     	openmp_keyword_known2
 	"end"     	openmp_keyword_known2
-	"map"		openmp_keyword_known_do_parens
+	"map"		openmp_keyword_known_do_parens_free
 done
 	"a-z0-9A-Z_"	openmp_keyword
 :openmp_keyword_known OpenMPkw
@@ -467,6 +468,9 @@ done
 :openmp_keyword_known_do_parens1 OpenMP
 	*		openmp_parens noeat
         "a-z_"          openmp_keyword recolor=-1 buffer
+:openmp_keyword_known_do_parens_free OpenMPkw
+	*		openmp noeat
+	")"		openmp_keyword
 
 # All following states are for when we're not in a preprocessor line
 

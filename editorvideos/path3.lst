@@ -1,6 +1,7 @@
 12	#include "common.inc"
+305	#include "helper_cuda.inc"
 100	
-100`201*	#pragma omp declare target
+100`101`201*	#pragma omp declare target
 201`300*	#pragma acc routine
 12`200*	
 12`300*	double mylog2(double value)
@@ -32,38 +33,30 @@
 12`300*	    return x*(y*std::log2(std::exp(1.))) + dbl_e;
 12`300*	}
 11`300*	
-210`300*	#pragma acc routine
+210`211`300*	#pragma acc routine
 11	template<bool WithMoment>
-11`470*	double Iterate(double zr, double zi)
-470`475`1000*	void __global__ Iterate(double zr, double zi`1:, double xscale, double yscale, double* results`01:)
+11`320*	double Iterate(double zr, double zi)
+320`325`1000*	void __global__ Iterate(double zr, double zi`1:, double xscale, double yscale, double* results`01:)
 1000	void __global__ Iterate(double zr, double zi, double xscale, double yscale, std::uint16_t* results)
 11	{
-11	    const double escape_radius_squared = ESCAPE_RADIUS_SQUARED;
-11	    const int maxiter = MAXITER;
-485	
 485	    unsigned slotno = blockIdx.x * blockDim.x + threadIdx.x;
 485	    unsigned x = slotno % Xres, y = slotno / Xres;
 485	    if(y >= Yres) return;
 480	
-11`490	    `0:double cr = zr, sr = cr;`1:double cr = zr += xscale*int(x-Xres/2), sr = cr;
-11`490	    `0:double ci = zi, si = ci;`1:double ci = zi += yscale*int(y-Yres/2), si = ci;
-11	    double dist;
-11	    int iter = maxiter, notescaped = -1;
+11`490	    `0:double cr = zr, sr = cr, r2 = cr*cr, dist;`1:double cr = zr += xscale*int(x-Xres/2), sr = cr, r2 = cr*cr, dist;
+11`490	    `0:double ci = zi, si = ci, i2 = ci*ci;`1:double ci = zi += yscale*int(y-Yres/2), si = ci, i2 = ci*ci;
 11	
-11	    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+11	    int notescaped = ((zr+r2*(8*r2+(16*i2-3))+i2*(8*i2-3) >= 3./32) & (((zr+1)*(zr+1)+i2)>=1./16)) ? -1 : 0;
+11	    int iter       = MAXITER & notescaped;
 11	
-11	    while(notescaped)
+11	    for(; notescaped; r2 = cr*cr, i2 = ci*ci)
 11	    {
-11	        double r2 = cr * cr;
-11	        double i2 = ci * ci;
 11	        dist = r2 + i2;
-11	
-11	        notescaped &= ((iter != 0) & (dist < escape_radius_squared)) ? -1 : 0;
-11	        iter += notescaped;
-11	
-11	        double ri = cr * ci;
-11	        ci = zi + (ri * 2);
+11	        ci = zi + (cr * ci * 2);
 11	        cr = zr + (r2 - i2);
+11	
+11	        notescaped &= ((iter != 0) & (dist < ESCAPE_RADIUS_SQUARED)) ? -1 : 0;
+11	        iter += notescaped;
 11	
 11	        if(WithMoment)
 11	        {
@@ -73,91 +66,119 @@
 11	            si = notmoment ? si : ci;
 11	        }
 11	    }
-11`310*	    return iter ? mylog2( maxiter-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
-310`495*	    return iter ? std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
-495`1010*	    results[slotno] = iter ? std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
-1010	    results[slotno] = iter ? int(std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (8*4/std::log2(std::exp(1.)))) : 0;
+11`310*	    return iter ? mylog2( MAXITER-iter + 1 - mylog2(mylog2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+310`330*	    return iter ? std::log2( MAXITER-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+330`495*	    results[...] = iter ? std::log2( MAXITER-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+495`1010*	    results[slotno] = iter ? std::log2( MAXITER-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
+1010	    results[slotno] = iter ? int(std::log2( MAXITER-iter + 1 - std::log2(std::log2(dist) / 2)) * (8*4/std::log2(std::exp(1.)))) : 0;
 11	}
 110`215*	#pragma omp end declare target
-450	
-450	constexpr unsigned npixels = Xres * Yres, nthreads = 128, nblocks = (npixels + nthreads - 1) / nthreads;
+10	
+10`416	constexpr unsigned npixels = Xres * Yres`1:, nthreads = 128, nblocks = (npixels + nthreads - 1) / nthreads`01:;
 1100	constexpr unsigned num_streams = 2;
 10	
 10	int main()
 10	{
-125`430*	    static double results[Xres*Yres];
-430`1020*	    static double results[Xres*Yres], *p = NULL;
-1020`1110*	    static std::uint16_t results[Xres*Yres], *p = NULL;
-1110	    static std::uint16_t results[num_streams][npixels], *pointers[num_streams]{};
+125`420*	    static double results[npixels];
+420`1020*	    static double results[npixels], *p = NULL;
+1020`1110*	    static std::uint16_t results[npixels], *p = NULL;
+1110	    static std::uint16_t results[num_streams][npixels], *ptr[num_streams]{};
 1111	    cudaStream_t streams[num_streams];
 1111	
-1111	    unsigned stream_number = 0, streams_busy = 0;
+1111	    unsigned stream_nr = 0, streams_busy = 0;
 1111	    bool     stream_busy[num_streams];
 1111	
 1111	    for(unsigned n=0; n<num_streams; ++n)
 1111	    {
-435`1115*	    checkCudaErrors(cudaMalloc((void**)&p, sizeof(results))); assert(p != NULL);
-1115	        checkCudaErrors(cudaMalloc((void**)&pointers[n], sizeof(results[0])));
-1116	        checkCudaErrors(cudaStreamCreate(&streams[n]));
+425`1115*	    checkCudaErrors(cudaMalloc((void**)&p, sizeof(results)));
+1115	        checkCudaErrors(cudaMalloc((void**)&ptr[n], sizeof(results[0])));
+1116^	        checkCudaErrors(cudaStreamCreate(&streams[n]));
 1116	        stream_busy[n] = false;
-1111	    }
+1112	    }
 120	
-10	    bool NeedMoment = true;
-10	
 10	    MAINLOOP_START(1);
-10	    while(MAINLOOP_GET_CONDITION())
+10`1120	    for(bool NeedMoment = true; MAINLOOP_GET_CONDITION()`1: || streams_busy`01:; )
 10	    {
-10	        std::vector<unsigned> pixels (Xres * Yres);
-10	
+10`1215*	        std::vector<unsigned> pixels (npixels);
+10`1215*	
 10	        double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 10	
-10	        unsigned n_inside = 0;
-10	
-170vv	        if(NeedMoment)
+10`189*	        unsigned n_inside = 0;
+10`189*	
+1220	        if(stream_busy[stream_nr])
+1220	        {
+1251	            stream_busy[stream_nr] = false; --streams_busy;
+1251`1299	            checkCudaErrors(cudaStreamSynchronize(streams[stream_nr]));
+1250	
+1210^^^^`1225	`1:    `01:        std::vector<unsigned> pixels (npixels);
+1210^^^^	
+1235	            const std::uint16_t* r = results[stream_nr];
+1200vvvvvvvvvvvvvvvvvvvvv`1226`1240*	`1:    `01:        unsigned n_inside = std::count_if(results, results+npixels, std::bind1st(std::equal_to<std::uint16_t>(), 0));
+1240	            unsigned n_inside = std::count_if(r, r+npixels, std::bind1st(std::equal_to<std::uint16_t>(), 0));
+1200vvvvvvvvvvvvvvvvvvvvv`1222*	
+1200vvvvvvvvvvvvvvvvvvvvv`1226	`1:    `01:        NeedMoment = n_inside >= (npixels)/1024;
+1200vvvvvvvvvvvvvvvvvvvvv	
+1200vvvvvvvvvvvvvvvvvvvvv`1228	        `1:    `01:#pragma omp parallel for /* This part is run natively */
+1200vvvvvvvvvvvvvvvvvvvvv`1228	`1:    `01:        for(unsigned y=0; y<Yres; ++y)
+1200vvvvvvvvvvvvvvvvvvvvv`1228	`1:    `01:            for(unsigned x=0; x<Xres; ++x)
+1200vvvvvvvvvvvvvvvvvvvvv`1228`1245	`12:    `012:                pixels[y*Xres + x] = Color(x,y, `01:results`2:r`012:[y*Xres+x]/8.);
+1200vvvvvvvvvvvvvvvvvvvvv	
+1200vvvvvvvvvvvvvvvvvvvvv`1229	`1:    `01:        MAINLOOP_PUT_RESULT(pixels);
+1221	        }
+1201	
+1150	        if(MAINLOOP_GET_CONDITION())
+1150	        {
+170vv`1160	        `1:    `01:if(NeedMoment)
 10`160*	        for(unsigned y=0; y<Yres; ++y)
 10`350*	        {
 10`175*	            if(NeedMoment)
-185`220*	            #pragma omp target teams distribute parallel for collapse(2) map(to:zr,zi,xscale,yscale) map(from:results[0:Xres*Yres])
-220`350*	            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
+185`220*	            #pragma omp target teams distribute parallel for collapse(2) map(to:zr,zi,xscale,yscale) map(from:results[0:npixels])
+220`350*	            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:npixels])
 150^^^`350*	            for(unsigned y=0; y<Yres; ++y)
 10`350*	                for(unsigned x=0; x<Xres; ++x)
 10`146*	                {
 10`130*	                    double v = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
 130`375*	                    results[y*Xres+x] = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-375`400	            `0:Iterate<true>(...);`1:Iterate<true><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, p);
+375`400`428`1160`1170*	            `0:Iterate<true>(...);`34:    `1234:Iterate<true><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, `1:results`234:p`1234: );
+1170	                Iterate<true><<<nblocks, nthreads, 0, streams[stream_nr]>>>( zr, zi, xscale, yscale, ptr[stream_nr]);
 10`132*	                    n_inside += v == 0.;
 10`132*	                    pixels[y*Xres + x] = Color(x,y, v);
 10`144*	                }
 180`355*	        }
-10`180`	        `0:    `01:else
+10`180`1160	        `02:    `012:else
 180`360*	        {
-187^^^^^^^`230*	            #pragma omp target teams distribute parallel for collapse(2) map(to:zr,zi,xscale,yscale) map(from:results[0:Xres*Yres])
-235^^^^^^^`360*	            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
+187^^^^^^^`230*	            #pragma omp target teams distribute parallel for collapse(2) map(to:zr,zi,xscale,yscale) map(from:results[0:npixels])
+235^^^^^^^`360*	            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:npixels])
 155^^^^`360*	            for(unsigned y=0; y<Yres; ++y)
 10`360*	                for(unsigned x=0; x<Xres; ++x)
 10`142*	                {
 10`138*	                    double v = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
 138`370*	                    results[y*Xres+x] = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-370`410	            `0:Iterate<false>(...);`1:Iterate<false><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, p);
+370`410`429`1160`1171*	            `0:Iterate<false>(...);`34:    `1234:Iterate<false><<<nblocks, nthreads, 0>>>( zr, zi, xscale, yscale, `1:results`234:p`1234: );
+1172^^	                Iterate<false><<<nblocks, nthreads, 0, streams[stream_nr]>>>( zr, zi, xscale, yscale, ptr[stream_nr]);
 10`135*	                    n_inside += v == 0.;
 10`135*	                    pixels[y*Xres + x] = Color(x,y, v);
 10`140*	                }
 10`365*	        }
-420	
-420	        checkCudaErrors(cudaMemcpy(results, p, sizeof(results), cudaMemcpyDeviceToHost));
+430	
+430`1165`1175*	        `1:    `01:checkCudaErrors(cudaMemcpy(results, p, sizeof(results), cudaMemcpyDeviceToHost));
+1175	            cudaMemcpyAsync(results[stream_nr], ptr[stream_nr], sizeof(results[0]), cudaMemcpyDeviceToHost, streams[stream_nr]);
+1175	            stream_busy[stream_nr] = true; ++streams_busy;
+1151	        }
 190	
-190`1030*	        unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<double>(), 0.));
-1030	        unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<std::uint16_t>(), 0));
-10	
-10	        NeedMoment = n_inside >= (Xres*Yres)/1024;
-197	
-198`199`240*	        #pragma omp parallel for /* This part is run natively */
-195`299	        for(unsigned y=0; y<Yres; ++y)
-195^	            for(unsigned x=0; x<Xres; ++x)
+190`1030*	        unsigned n_inside = std::count_if(results, results+npixels, std::bind1st(std::equal_to<double>(), 0.));
+1030`1205*	        unsigned n_inside = std::count_if(results, results+npixels, std::bind1st(std::equal_to<std::uint16_t>(), 0));
+10`1205*	
+10`1205*	        NeedMoment = n_inside >= (npixels)/1024;
+197`1205*	
+198`199`240`368`1205*	        `2://`0123:#pragma omp parallel for /* This part is run natively */
+195`299`1205*	        for(unsigned y=0; y<Yres; ++y)
+195^`1205*	            for(unsigned x=0; x<Xres; ++x)
 196`1040*	                pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]);
-1040	                pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]/8.);
-10	
-10	        MAINLOOP_PUT_RESULT(pixels);
+1040`1205*	                pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]/8.);
+10`1205*	
+10`1205*	        MAINLOOP_PUT_RESULT(pixels);
+1180	        stream_nr = (stream_nr+1)%num_streams; /* Swap to next stream */
 10	    }
 10	    MAINLOOP_FINISH();
 10	}

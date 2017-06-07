@@ -46,15 +46,15 @@ constexpr unsigned num_streams = 2;
 
 int main()
 {
-    static std::uint16_t results[num_streams][npixels], *pointers[num_streams]{};
+    static std::uint16_t results[num_streams][npixels], *ptr[num_streams]{};
     cudaStream_t streams[num_streams];
 
-    unsigned stream_number = 0, streams_busy = 0;
+    unsigned stream_nr = 0, streams_busy = 0;
     bool     stream_busy[num_streams];
 
     for(unsigned n=0; n<num_streams; ++n)
     {
-        checkCudaErrors(cudaMalloc((void**)&pointers[n], sizeof(results[0])));
+        checkCudaErrors(cudaMalloc((void**)&ptr[n], sizeof(results[0])));
         checkCudaErrors(cudaStreamCreate(&streams[n]));
         stream_busy[n] = false;
     }
@@ -66,16 +66,16 @@ int main()
     {
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
-        if(stream_busy[stream_number])
+        if(stream_busy[stream_nr])
         {
-            stream_busy[stream_number] = false; --streams_busy;
-            checkCudaErrors(cudaStreamSynchronize(streams[stream_number]));
-
-            const std::uint16_t* r = results[stream_number];
-            unsigned n_inside = std::count_if(r, r+npixels, std::bind1st(std::equal_to<std::uint16_t>(), 0));
-            NeedMoment = n_inside >= (Xres*Yres)/1024;
+            stream_busy[stream_nr] = false; --streams_busy;
+            checkCudaErrors(cudaStreamSynchronize(streams[stream_nr]));
 
             std::vector<unsigned> pixels (Xres * Yres);
+
+            const std::uint16_t* r = results[stream_nr];
+            unsigned n_inside = std::count_if(r, r+npixels, std::bind1st(std::equal_to<std::uint16_t>(), 0));
+            NeedMoment = n_inside >= (Xres*Yres)/1024;
 
             #pragma omp parallel for
             for(unsigned y=0; y<Yres; ++y)
@@ -88,15 +88,15 @@ int main()
         if(MAINLOOP_GET_CONDITION())
         {
             if(NeedMoment)
-                Iterate<true><<<nblocks, nthreads, 0, streams[stream_number]>>>( zr, zi, xscale, yscale, pointers[stream_number]);
+                Iterate<true><<<nblocks, nthreads, 0, streams[stream_nr]>>>( zr, zi, xscale, yscale, ptr[stream_nr]);
             else
-                Iterate<false><<<nblocks, nthreads, 0, streams[stream_number]>>>( zr, zi, xscale, yscale, pointers[stream_number]);
+                Iterate<false><<<nblocks, nthreads, 0, streams[stream_nr]>>>( zr, zi, xscale, yscale, ptr[stream_nr]);
 
-            cudaMemcpyAsync(results[stream_number], pointers[stream_number], sizeof(results[0]), cudaMemcpyDeviceToHost, streams[stream_number]);
-            stream_busy[stream_number] = true; ++streams_busy;
+            cudaMemcpyAsync(results[stream_nr], ptr[stream_nr], sizeof(results[0]), cudaMemcpyDeviceToHost, streams[stream_nr]);
+            stream_busy[stream_nr] = true; ++streams_busy;
         }
 
-        stream_number = (stream_number+1)%num_streams;
+        stream_nr = (stream_nr+1)%num_streams;
     }
     MAINLOOP_FINISH();
 }

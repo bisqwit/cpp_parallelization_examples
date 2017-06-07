@@ -21,6 +21,7 @@ $screens = Array
   #        textdims  font  double c64
   10   => [''."\r".'-'.RT."\r".SF1."116 50\r",         116,50, 8,8, 0,0 ],
   130  => [SF1."132 50\r",                               132,50, 8,8, 0,0 ],
+  300  => [F2.F2.F2.F2.F2.F2.F2.F2.F2.F2,                 132,60, 8,8, 0,0 ],
 ); 
 
 $line_anchor = Array
@@ -32,18 +33,22 @@ $line_anchor = Array
   130 => 32,
   185 => 17,
   200 => 1,
-  210 => 14,
-  215 => 46,
-  220 => 22,
-  300 => 0,
+  #210 => 14,
+  215 => 6,
+  300 => 2,
   
-  310 => 8,
- # 350 => 30,
+  350 => 43,
+  #415 => 0,
+
+  1030 => 41,
+  
+  1100 => 1,
 );
 
 
 $selections = Array
 (
+  1251 => Array(0 => 'tream'),
 );
 
 $turbo_ranges = Array
@@ -53,11 +58,20 @@ $turbo_ranges = Array
 
 // Delay performed before this number
 $bigdelay = Array(
-  100, //
+  100, // Before #pragma omp declare target
+  101, // Explain just that
   185, // Before #pragma teams is added
   199, // pause
   200, // Begin OpenACC 
+  211, // Explain #pragma acc routine
   299, // End OpenACC
   300, // Begin Cuda
+  325, // Pause after __global__, and before adding the new function params
+  400, // Pause before calling __global__ functions
+  420, // Pause before adding p-pointer, to explain cuda-device-side memory and need for memcpy
+  480, // Pause before changes to Iterate() to differentiate iterations
+  1000, // Start changing to uint16_t
+  1100, // Pause before adding streams
+  1299, // Finish
 );
 
