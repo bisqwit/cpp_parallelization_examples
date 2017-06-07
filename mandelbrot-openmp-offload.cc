@@ -77,6 +77,8 @@ int main()
     MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
+        std::vector<unsigned> pixels (Xres * Yres);
+
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
         if(NeedMoment)
@@ -95,11 +97,10 @@ int main()
         }
 
         unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<double>(), 0.));
+
         NeedMoment = n_inside >= (Xres*Yres)/1024;
 
-        std::vector<unsigned> pixels (Xres * Yres);
-
-        #pragma omp parallel for
+        #pragma omp parallel for /* This part is run natively */
         for(unsigned y=0; y<Yres; ++y)
             for(unsigned x=0; x<Xres; ++x)
                 pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]);

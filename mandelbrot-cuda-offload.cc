@@ -72,10 +72,6 @@ int main()
             for(unsigned x=0; x<Xres; ++x)
                 pixels[y*Xres + x] = Color(x,y, results[y*Xres+x]);
 
-        /*static std::FILE* fp = std::fopen("/mnt/arch/mandelbrot-4K.bin", "wb");
-        std::fwrite(&pixels[0], Xres*Yres, sizeof(unsigned), fp);
-        std::fflush(fp);*/
-
         MAINLOOP_PUT_RESULT(pixels);
     }
     MAINLOOP_FINISH();

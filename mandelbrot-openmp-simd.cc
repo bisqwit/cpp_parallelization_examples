@@ -12,13 +12,11 @@ std::array<double,N> plog2(const std::array<double, N>& value)
     std::array<uint64_t,N> m;
     std::array<double,N> x, dbl_e, z, y, u, t, result;
     #pragma omp simd
-    for(unsigned n=0; n<N; ++n) { m[n] = reinterpret_cast<const std::uint64_t&>(value[n]); }
-    #pragma omp simd
-    for(unsigned n=0; n<N; ++n) { e[n] = m[n] >> mantissa_bits;
+    for(unsigned n=0; n<N; ++n) { m[n] = reinterpret_cast<const std::uint64_t&>(value[n]);
+                                  e[n] = m[n] >> mantissa_bits;
                                   m[n] &= std::uint64_t((1ull << mantissa_bits)-1);
-                                  m[n] |= half_bits; }
-    #pragma omp simd
-    for(unsigned n=0; n<N; ++n) { x[n] = reinterpret_cast<const double&>(m[n]); }
+                                  m[n] |= half_bits;
+                                  x[n] = reinterpret_cast<const double&>(m[n]); }
     #pragma omp simd
     for(unsigned n=0; n<N; ++n) { lt[n] = (x[n] < 1/std::sqrt(2.)) ? -1 : 0;
                                   dbl_e[n] = e[n] + lt[n] - exponent_bias;

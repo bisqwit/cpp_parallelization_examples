@@ -11,11 +11,11 @@ std::array<double,N> plog2(const std::array<double, N>& value)
     std::array<int,N> e, lt;
     std::array<uint64_t,N> m;
     std::array<double,N> x, dbl_e, z, y, u, t, result;
-    for(unsigned n=0; n<N; ++n) { m[n] = reinterpret_cast<const std::uint64_t&>(value[n]); }
-    for(unsigned n=0; n<N; ++n) { e[n] = m[n] >> mantissa_bits;
+    for(unsigned n=0; n<N; ++n) { m[n] = reinterpret_cast<const std::uint64_t&>(value[n]);
+                                  e[n] = m[n] >> mantissa_bits;
                                   m[n] &= std::uint64_t((1ull << mantissa_bits)-1);
-                                  m[n] |= half_bits; }
-    for(unsigned n=0; n<N; ++n) { x[n] = reinterpret_cast<const double&>(m[n]); }
+                                  m[n] |= half_bits;
+                                  x[n] = reinterpret_cast<const double&>(m[n]); }
     for(unsigned n=0; n<N; ++n) { lt[n] = (x[n] < 1/std::sqrt(2.)) ? -1 : 0;
                                   dbl_e[n] = e[n] + lt[n] - exponent_bias;
                                   z[n] = x[n] - (half + (lt[n] ? 0. : half));
@@ -118,18 +118,15 @@ int main()
             for(unsigned n=0; n<N; ++n)    { i[n] = zi+yscale*int(y-Yres/2); }
             for(unsigned x=0; x<Xres; ++x) { r[x] = zr+xscale*int(x-Xres/2); }
 
+            double* resptr = &results[0];
             if(NeedMoment)
                 for(unsigned x=0; x<Xres/N*N; x += N)
-                {
-                    auto res = Iterate<true,N>(&r[x], i);
-                    for(unsigned n=0; n<N; ++n) results[x+n] = res[n];
-                }
+                    for(auto d: Iterate<true,N>(&r[x], i))
+                        *resptr++ = d;
             else
                 for(unsigned x=0; x<Xres/N*N; x += N)
-                {
-                    auto res = Iterate<false,N>(&r[x], i);
-                    for(unsigned n=0; n<N; ++n) results[x+n] = res[n];
-                }
+                    for(auto d: Iterate<false,N>(&r[x], i))
+                        *resptr++ = d;
 
             for(unsigned x=0; x<Xres; ++x) { n_inside += (results[x] == 0.);
                                              pixels[y*Xres + x] = Color(x,y, results[x]); }

@@ -20,7 +20,6 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, std:
     if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { act=false; iter=0; }
 
     while(act)
-    //for(unsigned n=0; n < 4; ++n)
     {
         double r2 = cr * cr;
         double i2 = ci * ci;
@@ -31,7 +30,7 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, std:
         ci = zi + (ri * 2);
         cr = zr + (r2 - i2);
 
-        if(WithMoment)// && !n)
+        if(WithMoment)
         {
             bool moment = iter & (iter-1);
             iter = (cr == sr && ci == si) ? 0 : iter;
