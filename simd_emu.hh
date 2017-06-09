@@ -1,3 +1,6 @@
+
+/* EMULATION WRAPPERS FOR VARIOUS INTRINSICS FOR COMPILATION ON HARDWARE THAT LACKS THEM */
+
 #ifndef __AVX__
 union my256 { struct { __m128d d[2]; }; struct { __m128i i[2]; };
               my256(__m128d dhi, __m128d dlo) { d[0] = dlo; d[1] = dhi; }
