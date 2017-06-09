@@ -1,11 +1,11 @@
-static const unsigned Xres = 3840, Yres = 2160;
+//static const unsigned Xres = 3840, Yres = 2160;
 //static const unsigned Xres = 1920, Yres = 1080;
 //static const unsigned Xres = 1706, Yres = 960;
-//static const unsigned Xres = 848, Yres = 480;
+static const unsigned Xres = 848, Yres = 480;
 //static const unsigned Xres = 424, Yres = 240;
 //static const unsigned Xres = 212, Yres = 120;
 
-#define TIMINGS_VERSION
+//#define TIMINGS_VERSION
 
 
 #ifdef TIMINGS_VERSION
