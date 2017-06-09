@@ -1,0 +1,79 @@
+<?php
+
+define('IN_FILE', 'path1.lst');
+define('SAVE_FILE', 'mandlt.cc');
+define('SHOW_PLAN',   true);
+define('FINAL_OUTPUT', false);
+
+define('PLAN_SHOW_OUTSIDES', 3); // Max 3 lines outside visible area
+
+define('MAX_LEVEL', 99900);
+define('DEFAULT_SPEED', chr(255).chr(255).chr(19)); // Default speed: 23/16
+define('COMMENT_SPEED', chr(255).chr(255).chr(6)); // 9/16
+
+define('ATLAST', "ÿÿd\r".DELAY100s."ÿÿx\r\rexit\r\r");
+
+define('FORCE_SPEED', false);
+#define('FORCE_SPEED', 4);
+
+$screens = Array
+(
+  #        textdims  font  double c64
+  10   => [''."\r".'-'.RT."\r".SF1."116 50\r",                                      116,50, 8,8, 0,0 ],
+  1120 => [F2.F4.F4.F2.F4.F2.F4.F2.F4.F2.F4.F4.F2.F4.F2.F4.F4.F2.F4.F4.F2.F4.F4.F2.F4, 146,60, 8,8, 0,0 ],
+); 
+
+$line_anchor = Array
+(
+  # Line number to make the first visible line on screen,
+  # relative to the first line that gets edited
+  200 => 20,
+  340 => 0,
+  400 => 0,
+  440 => 20,
+  470 => 22,
+  1000 => 11,
+  1100 => 31,
+  1120 => 6,
+  1600 => 2,
+  2030 => 55,
+  2080 => 33,
+  3000 => 12,
+  3040 => 30, 3060 => 5
+);
+
+
+$selections = Array
+(
+  20 => Array(0 => 'double '),
+  #30 => Array(0 => 'double '),
+  70 => Array(1 => 'ci*ci'),
+);
+
+$turbo_ranges = Array
+(
+  111=>4, 112=>4, // numbers in log2
+);
+
+// Delay performed before this number
+$bigdelay = Array(
+  50,  // Add periodicity checking
+  60,  // optimization
+  70,  // special case
+  80,  // float result
+  100, // custom log2
+  200, // main
+  300, // MAINLOOP macros
+  400, // WithMoment!
+  470, // WithMoment n_inside logic
+
+  1000, // implicit-SIMD Convert to loops!
+  1100, // in Iterate()
+  1500, // rewriting Iterate() return
+  1600, // vectorized log2()
+
+  2000, // adding OpenMP SIMD
+  3000, // changing into Cilkplus SIMD
+  3199, // End
+);
+
