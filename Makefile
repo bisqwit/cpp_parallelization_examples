@@ -39,7 +39,7 @@ CC=g++
 CXX=g++
 CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered
 CXXFLAGS = -std=c++14 -Ofast -march=native
-LDFLAGS  = -pthread $(shell pkg-config sdl --libs)
+LDLIBS   = -pthread $(shell pkg-config sdl --libs)
 CPPFLAGS +=         $(shell pkg-config sdl --cflags --libs)
 
 BINARIES = \
@@ -75,18 +75,18 @@ run: $(BINARIES)
 
 $(filter mandelbrot-openmp%,$(BINARIES)): CXXFLAGS += -fopenmp
 $(filter mandelbrot-cilk%,$(BINARIES)):   CXXFLAGS += -fcilkplus
-$(filter mandelbrot-cilk%,$(BINARIES)):   LDFLAGS  += -lcilkrts
+$(filter mandelbrot-cilk%,$(BINARIES)):   LLIBS    += -lcilkrts
 $(filter %explicit-simd,$(BINARIES)):     CXXFLAGS += -march=native $(PLATFORM_OPTS)
 $(filter mandelbrot-openacc%,$(BINARIES)): CXXFLAGS += -fopenacc
 
-$(filter mandelbrot-openmp-offload,$(BINARIES)):  CXXFLAGS += -foffload=x86_64-intelmicemul-linux-gnu -foffload=nvptx-none
-$(filter mandelbrot-openacc-offload,$(BINARIES)): CXXFLAGS += -foffload=x86_64-intelmicemul-linux-gnu -foffload=nvptx-none
+$(filter mandelbrot-openmp-offload,$(BINARIES)):  CXXFLAGS += -foffload=-lm -fno-fast-math -fno-associative-math
+$(filter mandelbrot-openacc-offload,$(BINARIES)): CXXFLAGS += -foffload=-lm -fno-fast-math -fno-associative-math
 
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXX = nvcc -x cu
 $(filter mandelbrot-cuda%,$(BINARIES)):   CC  = nvcc -Xcompiler -fopenmp
 $(filter mandelbrot-cuda%,$(BINARIES)):   CXXFLAGS = -std=c++11 -O3 $(shell pkg-config sdl --cflags)
 $(filter mandelbrot-cuda%,$(BINARIES)):   CPPFLAGS = -Xcompiler '-Wall -Wextra -Ofast -fopenmp' $(DEFS)
-$(filter mandelbrot-cuda%,$(BINARIES)):   LDFLAGS  = $(shell pkg-config sdl --libs --cflags)
+$(filter mandelbrot-cuda%,$(BINARIES)):   LDLIBS   = $(shell pkg-config sdl --libs --cflags)
 
 #$(BINARIES): common.inc
 #$(filter mandelbrot-implicit-simd%,$(BINARIES)):   CXX = clang++-5.0
