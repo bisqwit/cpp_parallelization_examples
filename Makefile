@@ -10,7 +10,7 @@ CC=g++
 CXX=g++
 CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered
 CXXFLAGS = -std=c++14 -Ofast -march=native
-LDFLAGS  = -pthread $(shell pkg-config sdl --libs)
+LDLIBS  = -pthread $(shell pkg-config sdl --libs)
 CPPFLAGS +=         $(shell pkg-config sdl --cflags --libs)
 
 BINARIES = \
@@ -21,7 +21,7 @@ BINARIES = \
 	\
 	mandelbrot-vanilla \
 	\
-	
+
 
 all: $(BINARIES)
 
