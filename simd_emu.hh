@@ -1,3 +1,6 @@
+
+/* EMULATION WRAPPERS FOR VARIOUS INTRINSICS FOR COMPILATION ON HARDWARE THAT LACKS THEM */
+
 #ifndef __AVX__
 union my256 { struct { __m128d d[2]; }; struct { __m128i i[2]; };
               my256(__m128d dhi, __m128d dlo) { d[0] = dlo; d[1] = dhi; }
@@ -35,7 +38,8 @@ union my256 { struct { __m128d d[2]; }; struct { __m128i i[2]; };
 #define _mm256_set1_pd(x)              ([](__m128d v){ return my256(v,v); })(_mm_set1_pd(x))
 #define _mm256_set1_epi32(x)           ([](__m128i v){ return my256(v,v); })(_mm_set1_epi32(x))
 #define _mm256_set1_epi64x(x)          ([](__m128i v){ return my256(v,v); })(_mm_set1_epi64x(x))
-#define _mm256_setzero_si256()         ([](__m128i v){ return my256(v,v); })(_mm_setzero_si128())
+#define _mm256_setzero_si256()         my256(_mm_setzero_si128(), _mm_setzero_si128())
+#define _mm256_setzero_pd()            my256(_mm_setzero_pd(),_mm_setzero_pd())
 #define _mm256_set_pd(d,c,b,a)         my256(_mm_set_pd(d,c),_mm_set_pd(b,a))
 #define _mm256_set_epi64x(d,c,b,a)     my256(_mm_set_epi64x(d,c),_mm_set_epi64x(b,a))
 
