@@ -161,8 +161,8 @@ int main()
         {0x609000, "openmp-loop" },
         {0x20AA00, "cilkplus-loop" },
         {0xE0FFA0, "thread-loop" },
-//        {0x500000, "openmp-offload" },
-//        {0x703000, "openacc-offload" },
+        {0xF00000, "openmp-offload" },
+        {0x703000, "openacc-offload" },
         {0xAA3320, "cuda-offload" },
         {0xEE5540, "cuda-offload2" },
         {0xFFAA55, "cuda-offload3" }
@@ -209,7 +209,7 @@ int main()
         const auto* newpixels = pixels;
     #endif
         static unsigned framecounter=0;
-        char Buf2[32]; std::sprintf(Buf2, "%04d-", framecounter++);
+        char Buf2[32]; std::sprintf(Buf2, "%05d-", framecounter++);
         char Buf[32]; std::sprintf(Buf, "-%04d.png", n);
         SaveFrame(Buf2+which+Buf, newpixels);
     };
