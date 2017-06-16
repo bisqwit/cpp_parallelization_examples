@@ -45,6 +45,9 @@ $line_anchor = Array
 
 $selections = Array
 (
+  20 => Array(0 => 'double '),
+  #30 => Array(0 => 'double '),
+  70 => Array(1 => 'ci*ci'),
 );
 
 $turbo_ranges = Array

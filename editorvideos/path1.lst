@@ -70,7 +70,7 @@
 2020`3020	    `0:#pragma omp simd`1:#pragma simd
 1121	    for(unsigned n=0; n<N; ++n) { cr[n] = zr[n]; }
 1120	
-20^`50`1115*	    double ci = zi`1:, si = ci`01:;
+20`50`1115*	    double ci = zi`1:, si = ci`01:;
 1115^	    std::array<double,N> sr = cr, si = ci;
 20`1130*	    double dist;
 1130	    std::array<double,N> dist{};
@@ -82,8 +82,8 @@
 2070`3030	    `0:#pragma omp simd`1:#pragma simd
 1400	    for(unsigned n=0; n<N; ++n) {
 1410	        r2[n] = cr[n] * cr[n];
-1410^	        i2[n] = ci[n] * ci[n];
-70`1420*	    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+1410	        i2[n] = ci[n] * ci[n];
+70`1420*	    if(cr+cr*cr*(8*cr*cr+(16*ci*ci-3))+ci*ci*(8*ci*ci-3) < 3./32 || ((cr+1)*(cr+1)+ci*ci)<1./16) { iter=0; }
 1420	        notescaped[n] = ((cr[n]*(1+cr[n]*(8*r2[n]+(16*i2[n]-3)))+i2[n]*(8*i2[n]-3) >= 3./32) & (((cr[n]+1)*(cr[n]+1)+i2[n]) >= 1./16)) ? -1 : 0;
 1425	        iter[n] = maxiter & notescaped[n];
 1405	    }
@@ -95,7 +95,7 @@
 1355	        if(!n_escaped) break;
 1350	
 30`1340*	        double r2 = cr * cr;
-30^`1340*	        double i2 = ci * ci;
+30`1340*	        double i2 = ci * ci;
 2060`3040	        `0:#pragma omp simd`1:#pragma simd
 30`1200`1300*	        `0:dist = r2 + i2;`12:dist[n] = notescaped[n] ? r2[n] + i2[n] : dist[n];
 1300	        for(unsigned n=0; n<N; ++n) {   dist[n] = notescaped[n] ? r2[n] + i2[n] : dist[n];

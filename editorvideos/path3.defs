@@ -28,13 +28,12 @@ $line_anchor = Array
 (
   # Line number to make the first visible line on screen,
   # relative to the first line that gets edited
-  110 => 45,
-  120 => 39,
+  #110 => 45,
+  #120 => 39,
   130 => 32,
   185 => 17,
-  200 => 1,
-  #210 => 14,
-  215 => 6,
+  200 => 2,
+  220 => 26,
   300 => 2,
   
   350 => 43,
@@ -59,11 +58,11 @@ $turbo_ranges = Array
 // Delay performed before this number
 $bigdelay = Array(
   100, // Before #pragma omp declare target
-  101, // Explain just that
+  111, // Explain just that
   185, // Before #pragma teams is added
   199, // pause
   200, // Begin OpenACC 
-  211, // Explain #pragma acc routine
+  220, // Explain #pragma acc routine
   299, // End OpenACC
   300, // Begin Cuda
   325, // Pause after __global__, and before adding the new function params
