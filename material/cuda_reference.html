@@ -1,0 +1,436 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+
+<!-- From http://www.icl.utk.edu/~mgates3/docs/cuda.html -->
+
+<html>
+<head>
+	<title>CUDA reference</title>
+	<link href="../style.css" type="text/css" rel="StyleSheet">
+	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	
+	<style type="text/css">
+		th, td {
+			padding:        1px 1em 1px 0; /* trbl */
+			vertical-align: top;
+			text-align:     left;
+		}
+		
+		.right {
+			text-align:     right;
+		}
+		
+		code {
+			white-space:    pre;
+		}
+		
+		code, pre {
+			font-size:      9pt;
+		}
+		
+		.comment {
+			color:          #0000cc;
+			font-family:    serif;
+		}
+		
+		hr {
+			margin: 1em;
+		}
+	</style>
+</head>
+<body>
+
+<div class="nav">
+	<a href="../">Home</a>
+	<a href="./">Docs</a>
+</div>
+
+<div class="content">
+
+<h1>CUDA syntax</h1>
+
+<p>Source code is in .cu files, which contain mixture of host (CPU) and device
+(GPU) code.</p>
+
+<h2>Declaring functions</h2>
+
+<table>
+<tr><td><code>__global__     </code></td>  <td>declares kernel,          which is called on host and executed on device</td></tr>
+<tr><td><code>__device__     </code></td>  <td>declares device function, which is called and executed on device</td></tr>
+<tr><td><code>__host__       </code></td>  <td>declares host function,   which is called and executed on host</td></tr>
+<tr><td><code>__noinline__   </code></td>  <td>to avoid inlining</td></tr>
+<tr><td><code>__forceinline__</code></td>  <td>to force inlining</td></tr>
+</table>
+
+
+
+<h2>Declaring variables</h2>
+
+<table>
+<tr><td><code>__device__  </code></td>  <td>declares device variable in global         memory, accessible from all threads, with lifetime of application</td></tr>
+<tr><td><code>__constant__</code></td>  <td>declares device variable in constant       memory, accessible from all threads, with lifetime of application</td></tr>
+<tr><td><code>__shared__  </code></td>  <td>declares device varibale in block's shared memory, accessible from all threads within a block, with lifetime of block</td></tr>
+<tr><td><code>__restrict__</code></td>  <td>standard C definition that pointers are not aliased</td></tr>
+</table>
+
+
+
+<h2>Types</h2>
+
+Most routines return an error code of type <code>cudaError_t</code>.
+
+
+
+<h2>Vector types</h2>
+
+<pre>
+char1, uchar1, short1, ushort1, int1, uint1, long1, ulong1, float1
+char2, uchar2, short2, ushort2, int2, uint2, long2, ulong2, float2
+char3, uchar3, short3, ushort3, int3, uint3, long3, ulong3, float3
+char4, uchar4, short4, ushort4, int4, uint4, long4, ulong4, float4
+
+longlong1, ulonglong1, double1
+longlong2, ulonglong2, double2
+
+dim3
+</pre>
+
+Components are accessible as
+<code>variable.x, </code>
+<code>variable.y, </code>
+<code>variable.z, </code>
+<code>variable.w. </code><br>
+Constructor is <code>make_&lt;type&gt;( x, ... )</code>, for example:
+<pre>
+float2 xx = make_float2( 1., 2. );
+</pre>
+dim3 can take 1, 2, or 3 argumetns:
+<pre>
+dim3 blocks1D( 5       );
+dim3 blocks2D( 5, 5    );
+dim3 blocks3D( 5, 5, 5 );
+</pre>
+
+
+
+<h2>Pre-defined variables</h2>
+
+<table>
+<tr><td><code>dim3  gridDim  </code></td>  <td>dimensions of grid       </td></tr>
+<tr><td><code>dim3  blockDim </code></td>  <td>dimensions of block      </td></tr>
+<tr><td><code>uint3 blockIdx </code></td>  <td>block index within grid  </td></tr>
+<tr><td><code>uint3 threadIdx</code></td>  <td>thread index within block</td></tr>
+<tr><td><code>int   warpSize </code></td>  <td>number of threads in warp</td></tr>
+</table>
+
+
+
+<h2>Kernel invocation</h2>
+
+<pre>
+__global__ void kernel( ... ) { ... }
+
+dim3 blocks( nx, ny, nz );           <span class="comment">// cuda 1.x has 1D and 2D grids, cuda 2.x adds 3D grids</span>
+dim3 threadsPerBlock( mx, my, mz );  <span class="comment">// cuda 1.x has 1D, 2D, and 3D blocks</span>
+
+kernel&lt;&lt;&lt; blocks, threadsPerBlock &gt;&gt;&gt;( ... );
+</pre>
+
+
+
+<h2>Thread management</h2>
+
+<table>
+<tr><td><code>__threadfence_block(); </code></td>  <td>wait until memory accesses are visible to block                          </td></tr>
+<tr><td><code>__threadfence();       </code></td>  <td>wait until memory accesses are visible to block and device               </td></tr>
+<tr><td><code>__threadfence_system();</code></td>  <td>wait until memory accesses are visible to block and device and host (2.x)</td></tr>
+<tr><td><code>__syncthreads();       </code></td>  <td>wait until all threads reach sync                                        </td></tr>
+</table>
+
+
+
+<h2>Memory management</h2>
+
+<!-- TODO
+cudaPitchedPtr
+cudaExtent
+cudaMallocPitch();
+cudaMalloc3D();
+cudaMemcpy3D();
+-->
+
+<pre>
+__device__ float* pointer;
+cudaMalloc( (void**) &amp;pointer, size );
+cudaFree( pointer );
+
+__constant__ float dev_data[n];
+float host_data[n];
+cudaMemcpyToSymbol  ( dev_data,  host_data, sizeof(host_data) );  <span class="comment">// dev_data  = host_data</span>
+cudaMemcpyFromSymbol( host_data, dev_data,  sizeof(host_data) );  <span class="comment">// host_data = dev_data</span>
+
+<span class="comment">// direction is one of <code>cudaMemcpyHostToDevice</code> or <code>cudaMemcpyDeviceToHost</code></span>
+cudaMemcpy     ( dst_pointer, src_pointer, size, direction );
+cudaMemcpyAsync( dst_pointer, src_pointer, size, direction, stream );
+
+<span class="comment">// using column-wise notation</span>
+<span class="comment">// (the CUDA docs describe it for images; a &ldquo;row&rdquo; there equals a matrix column)</span>
+<span class="comment">// _bytes indicates arguments that must be specified in bytes</span>
+cudaMemcpy2D     ( A_dst, lda_bytes, B_src, ldb_bytes, m_bytes, n, direction );
+cudaMemcpy2DAsync( A_dst, lda_bytes, B_src, ldb_bytes, m_bytes, n, direction, stream );
+
+<span class="comment">// cublas makes copies easier for matrices, e.g., less use of sizeof</span>
+<span class="comment">// copy x => y</span>
+cublasSetVector     ( n, elemSize, x_src_host, incx, y_dst_dev,  incy );
+cublasGetVector     ( n, elemSize, x_src_dev,  incx, y_dst_host, incy );
+cublasSetVectorAsync( n, elemSize, x_src_host, incx, y_dst_dev,  incy, stream );
+cublasGetVectorAsync( n, elemSize, x_src_dev,  incx, y_dst_host, incy, stream );
+
+<span class="comment">// copy A => B</span>
+cublasSetMatrix     ( rows, cols, elemSize, A_src_host, lda, B_dst_dev,  ldb );
+cublasGetMatrix     ( rows, cols, elemSize, A_src_dev,  lda, B_dst_host, ldb );
+cublasSetMatrixAsync( rows, cols, elemSize, A_src_host, lda, B_dst_dev,  ldb, stream );
+cublasGetMatrixAsync( rows, cols, elemSize, A_src_dev,  lda, B_dst_host, ldb, stream );
+</pre>
+
+Also, <code>malloc</code> and <code>free</code> work inside a kernel (2.x), but
+memory allocated in a kernel must be deallocated in a kernel (not the host). It
+can be freed in a different kernel, though.
+
+
+
+<h2>Atomic functions</h2>
+
+<pre>
+old = atomicAdd ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr += value</span>
+old = atomicSub ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr &ndash;= value</span>
+old = atomicExch( &amp;addr, value );  <span class="comment">// old = *addr;  *addr  = value</span>
+
+old = atomicMin ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr = min( old, value )</span>
+old = atomicMax ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr = max( old, value )</span>
+
+<span class="comment">// increment up to value, then reset to 0  </span>
+<span class="comment">// decrement down to 0, then reset to value</span>
+old = atomicInc ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr = ((old >= value) ? 0 : old+1 )</span>
+old = atomicDec ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr = ((old == 0) or (old > val) ? val : old&ndash;1 )</span>
+
+old = atomicAnd ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr &amp;= value</span>
+old = atomicOr  ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr |= value</span>
+old = atomicXor ( &amp;addr, value );  <span class="comment">// old = *addr;  *addr ^= value</span>
+
+<span class="comment">// compare-and-store</span>
+old = atomicCAS ( &amp;addr, compare, value );  <span class="comment">// old = *addr;  *addr = ((old == compare) ? value : old)</span>
+</pre>
+
+
+
+<h2>Warp vote</h2>
+
+<pre>
+int __all   ( predicate );
+int __any   ( predicate );
+int __ballot( predicate );  <span class="comment">// nth thread sets nth bit to predicate</span>
+</pre>
+
+
+
+<h2>Timer</h2>
+
+wall clock cycle counter
+
+<pre>
+clock_t clock();
+</pre>
+
+
+
+<h2>Texture</h2>
+
+can also return float2 or float4, depending on texRef.
+
+<pre>
+<span class="comment">// integer index</span>
+float tex1Dfetch( texRef, ix );
+
+<span class="comment">// float index</span>
+float tex1D( texRef, x       );
+float tex2D( texRef, x, y    );
+float tex3D( texRef, x, y, z );
+
+float tex1DLayered( texRef, x    );
+float tex2DLayered( texRef, x, y );
+</pre>
+
+
+
+<hr>
+<h2>Low-level Driver API</h2>
+
+<pre>
+#include &lt;cuda.h&gt;
+
+CUdevice dev;
+CUdevprop properties;
+char name[n];
+int major, minor;
+size_t bytes;
+
+cuInit( 0 );  <span class="comment">// takes flags for future use</span>
+cuDeviceGetCount         ( &amp;cnt );
+cuDeviceGet              ( &amp;dev, index );
+cuDeviceGetName          ( name, sizeof(name), dev );
+cuDeviceComputeCapability( &amp;major, &amp;minor,     dev );
+cuDeviceTotalMem         ( &amp;bytes,             dev );
+cuDeviceGetProperties    ( &amp;properties,        dev );  <span class="comment">// max threads, etc.</span>
+</pre>
+
+
+
+<hr>
+<h2>cuBLAS</h2>
+
+Matrices are column-major. Indices are 1-based; this affects result of
+i&lt;t&gt;amax and i&lt;t&gt;amin.
+
+<pre>
+#include &lt;cublas_v2.h&gt;
+
+cublasHandle_t handle;
+cudaStream_t   stream;
+
+cublasCreate( &amp;handle );
+cublasDestroy( handle );
+cublasGetVersion( handle, &amp;version );
+cublasSetStream( handle,  stream );
+cublasGetStream( handle, &amp;stream );
+cublasSetPointerMode( handle,  mode );
+cublasGetPointerMode( handle, &amp;mode );
+</pre>
+
+<h3>Constants</h3>
+
+<table>
+<tr><th>argument          </th>  <th>constants                              </th>  <th>description (Fortran letter)           </th></tr>
+<tr><td><code>trans</code></td>  <td><code>CUBLAS_OP_N               </code></td>  <td>non-transposed       ('N')             </td></tr>
+<tr><td>                  </td>  <td><code>CUBLAS_OP_T               </code></td>  <td>transposed           ('T')             </td></tr>
+<tr><td>                  </td>  <td><code>CUBLAS_OP_C               </code></td>  <td>conjugate transposed ('C')             </td></tr>
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><code>uplo</code></td>   <td><code>CUBLAS_FILL_MODE_LOWER    </code></td>  <td>lower part filled ('L')                </td></tr>
+<tr><td>                 </td>   <td><code>CUBLAS_FILL_MODE_UPPER    </code></td>  <td>upper part filled ('U')                </td></tr>
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><code>side</code></td>   <td><code>CUBLAS_SIDE_LEFT          </code></td>  <td>matrix on left  ('L')                  </td></tr>
+<tr><td>                 </td>   <td><code>CUBLAS_SIDE_RIGHT         </code></td>  <td>matrix on right ('R')                  </td></tr>
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><code>mode</code></td>   <td><code>CUBLAS_POINTER_MODE_HOST  </code></td>  <td>alpha and beta scalars passed on host  </td></tr>
+<tr><td>                 </td>   <td><code>CUBLAS_POINTER_MODE_DEVICE</code></td>  <td>alpha and beta scalars passed on device</td></tr>
+</table>
+
+<p>BLAS functions have <code>cublas</code> prefix and first letter of usual BLAS
+function name is capitalized. Arguments are the same as standard BLAS, with
+these exceptions:</p>
+
+<ul>
+<li>All functions add handle as first argument.
+<li>All functions return cublasStatus_t error code.
+<li>Constants alpha and beta are passed by pointer. All other scalars (n, incx, etc.) are bassed by value.
+<li>Functions that return a value, such as ddot, add result as last argument, and save value to result.
+<li>Constants are given in table above, instead of using characters.
+</ul>
+
+<p>Examples:</p>
+
+<pre>
+cublasDdot ( handle, n, x, incx, y, incy, &amp;result );  // result = ddot( n, x, incx, y, incy );
+cublasDaxpy( handle, n, &amp;alpha, x, incx, y, incy );   // daxpy( n, alpha, x, incx, y, incy );
+</pre>
+
+
+
+<hr>
+<h2>Compiler</h2>
+
+<p><code>nvcc</code>, often found in <code>/usr/local/cuda/bin</code></p>
+
+<p>Defines <code>__CUDACC__</code></p>
+
+<h3>Flags common with cc</h3>
+
+<table>
+<tr><th>Short flag                      </th>  <th>Long flag                                   </th>  <th>Output or Description  </th></tr>
+<tr><td><code>-c</code>                 </td>  <td><code>--compile</code>                      </td>  <td>.o object file         </td></tr>
+<tr><td><code>-E</code>                 </td>  <td><code>--preprocess</code>                   </td>  <td>on standard output     </td></tr>
+<tr><td><code>-M</code>                 </td>  <td><code>--generate-dependencies</code>        </td>  <td>on standard output     </td></tr>
+<tr><td><code>-o <i>file</i></code>     </td>  <td><code>--output-file <i>file</i></code>      </td></tr>
+<tr><td><code>-I <i>directory</i></code></td>  <td><code>--include-path <i>directory</i></code></td>  <td>header  search path    </td></tr>
+<tr><td><code>-L <i>directory</i></code></td>  <td><code>--library-path <i>directory</i></code></td>  <td>library search path    </td></tr>
+<tr><td><code>-l <i>lib</i></code>      </td>  <td><code>--library <i>lib</i></code>           </td>  <td>link with library      </td></tr>
+<tr><td><code>-lib</code>               </td>  <td><code></code>                               </td>  <td>generate library       </td></tr>
+<tr><td><code>-shared</code>            </td>  <td><code></code>                               </td>  <td>generate shared library</td></tr>
+<tr><td><code>-pg</code>                </td>  <td><code>--profile</code>                      </td>  <td>for gprof              </td></tr>
+<tr><td><code>-g <i>level</i></code>    </td>  <td><code>--debug <i>level</i></code>           </td></tr>
+<tr><td><code>-G</code>                 </td>  <td><code>--device-debug</code>                 </td></tr>
+<tr><td><code>-O <i>level</i></code>    </td>  <td><code>--optimize <i>level</i></code>        </td></tr>
+<tr><td>&nbsp;</td>
+<tr><th colspan="3">Undocumented (but in sample makefiles)</th></tr>
+<tr><td><code>-m32</code>               </td>  <td>                                            </td>  <td>compile 32-bit i386   host CPU code</td></tr>
+<tr><td><code>-m64</code>               </td>  <td>                                            </td>  <td>compile 64-bit x86_64 host CPU code</td></tr>
+</table>
+
+<h3>Flags specific to nvcc</h3>
+
+<table>
+<tr><td><code>-v</code>                        </td>  <td>list compilation commands as they are executed                           </td></tr>
+<tr><td><code>-dryrun</code>                   </td>  <td>list compilation commands, without executing                             </td></tr>
+<tr><td><code>-keep</code>                     </td>  <td>saves intermediate files (e.g., pre-processed) for debugging             </td></tr>
+<tr><td><code>-clean</code>                    </td>  <td>removes output files (with same exact compiler options)                  </td></tr>
+<tr><td><code>-arch=&lt;compute_xy&gt;</code>  </td>  <td>generate PTX    for capability x.y                                       </td></tr>
+<tr><td><code>-code=&lt;sm_xy&gt;</code>       </td>  <td>generate binary for capability x.y, by default same as <code>-arch</code></td></tr>
+<tr><td><code>-gencode arch=...,code=...</code></td>  <td>same as <code>-arch</code> and <code>-code</code>, but may be repeated   </td></tr>
+</table>
+
+<h3>Argumenents for <code>-arch</code> and <code>-code</code></h3>
+
+<p>It makes most sense (to me) to give <code>-arch</code> a virtual architecture
+and <code>-code</code> a real architecture, though both flags accept both
+virtual and real architectures (at times).</p>
+
+<table>
+<tr><th>     </th>  <th>Virtual architecture   </th>  <th>Real architecture </td>  <th>Features                            </th></tr>
+<tr><th>Tesla</th>  <td><code>compute_10</code></td>  <td><code>sm_10</code></td>  <td>Basic features                      </td></tr>
+<tr><th>     </th>  <td><code>compute_11</code></td>  <td><code>sm_11</code></td>  <td>+ atomic memory ops on global memory</td></tr>
+<tr><th>     </th>  <td><code>compute_12</code></td>  <td><code>sm_12</code></td>  <td>+ atomic memory ops on shared memory<br>
+                                                                                       + vote instructions                 </td></tr>
+<tr><th>     </th>  <td><code>compute_13</code></td>  <td><code>sm_13</code></td>  <td>+ double precision                  </td></tr>
+<tr><th>Fermi</th>  <td><code>compute_20</code></td>  <td><code>sm_20</code></td>  <td>+ Fermi                             </td></tr>
+<tr></tr>           
+</table>
+
+
+
+<hr>
+<h2>Some hardware constraints</h2>
+
+<table>
+<tr><th>                              </th>  <th class="right">   1.x</th>  <th class="right">   2.x</th></tr>
+<tr><td>max x- or y-dimension of block</td>  <td class="right">   512</td>  <td class="right">  1024</td></tr>
+<tr><td>max z-dimension of block      </td>  <td class="right">    64</td>  <td class="right">    64</td></tr>
+<tr><td>max threads per block         </td>  <td class="right">   512</td>  <td class="right">  1024</td></tr>
+<tr><td>warp size                     </td>  <td class="right">    32</td>  <td class="right">    32</td></tr>
+<tr><td>max blocks per MP             </td>  <td class="right">     8</td>  <td class="right">     8</td></tr>
+<tr><td>max warps per MP              </td>  <td class="right">    32</td>  <td class="right">    48</td></tr>
+<tr><td>max threads per MP            </td>  <td class="right">  1024</td>  <td class="right">  1536</td></tr>
+<tr><td>max 32-bit registers per MP   </td>  <td class="right">   16k</td>  <td class="right">   32k</td></tr>
+<tr><td>max shared memory per MP      </td>  <td class="right"> 16 KB</td>  <td class="right"> 48 KB</td></tr>
+<tr><td>shared memory banks           </td>  <td class="right">    16</td>  <td class="right">    32</td></tr>
+<tr><td>local memory per thread       </td>  <td class="right"> 16 KB</td>  <td class="right">512 KB</td></tr>
+<tr><td>const memory                  </td>  <td class="right"> 64 KB</td>  <td class="right"> 64 KB</td></tr>
+<tr><td>const cache                   </td>  <td class="right">  8 KB</td>  <td class="right">  8 KB</td></tr>
+<tr><td>texture cache                 </td>  <td class="right">  8 KB</td>  <td class="right">  8 KB</td></tr>
+</table>
+
+</div>
+</body>
+</html>
