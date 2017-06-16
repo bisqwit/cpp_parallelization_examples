@@ -1,0 +1,565 @@
+Shalom!
+
+In this three-part series we will
+study things you can do in GCC –
+
+to add parallelism to your programs.
+
+Now there are different definitions,
+but when I say parallelism,
+
+I mean your program does more
+than one thing at once.
+
+And I don’t mean that it appears
+to do many things at once,
+
+I mean it literally does
+many things simultaneously.
+
+The plot device for this study
+is a Mandelbrot fractal renderer.
+
+This function is the core of the
+fractal calculation.
+
+Just to make it a bit more efficient
+than your first tutorial program,
+I added three simple optimizations.
+
+Namely, periodicity checking,
+which checks whether the value –
+
+has been already seen earlier
+at one of predefined moments.
+
+And some reformulations to
+minimize the number of branches
+the processor must execute,
+which will be very important later.
+
+And finally this crazy formula
+which checks whether z belongs
+inside the main cardioid or
+the largest sphere attached to it.
+
+You can learn more about the fractal
+in Wikipedia if you are interested.
+
+For this video I just needed
+a calculation-heavy task,
+
+and the fractal was the only reasonable
+thing that came to my mind
+
+despite a year or so of deliberation.
+
+For reasons that will become evident later,
+this fractal renderer uses a homebrew
+logarithm function.
+
+If you have ever wondered
+how the computer –
+
+actually computes
+these scientific functions,
+
+well here you can see an example.
+
+The algorithm comes from
+the Cephes math library,
+
+just simplified a bit so it doesn’t
+deal with tricky corner cases.
+
+The bulk of the work is done by
+reading the exponent field directly –
+
+from inside the float value, using
+bitmasks and bitshifts,
+
+and then the rest is approximated
+with a taylor series.
+
+You can learn more about
+this, too, in Wikipedia.
+
+Just look up Taylor series.
+
+
+Now, in the upper right corner
+you can see –
+
+how the output of this program
+will look.
+
+You can either follow along
+as I write the rest of the main program,
+
+or you can marvel the beautiful fractal,
+
+or you can just skip forward
+to until about 2 minutes and 52 seconds,
+
+when interesting things start happening.
+
+
+In the main loop we go through
+the pixels of the image,
+
+converting X and Y coordinates
+into complex coordinates.
+
+Each complex coordinate will
+be run through the iteration loop,
+
+and the result will be converted into a color.
+
+This color will be rendered as a pixel.
+
+The complex coordinates are changed each frame.
+
+As yet another optimization,
+the periodicity checking
+is dynamically enabled or disabled.
+
+A template parameter controls whether
+the checks are compiled in.
+
+Periodicity checking is enabled
+if at least one pixel in thousand
+were inside the set,
+and disabled otherwise.
+
+And now.
+This graph shows the performance
+of this “vanilla” program.
+
+Some parts of the process were
+faster, and some were slower.
+
+It begins rendering at 1 s/frame,
+and ends at 40 s/frame.
+
+
+We have already done several improvements
+to the rendering algorithm.
+
+Perhaps in reality there is still more
+that could be done,
+
+but for the sake of getting
+finally into actual topic,
+
+let’s imagine we’ve done already
+every possible algorithm improvement,
+
+turning all the N²‘s
+into N log N‘s and so on.
+
+How can we still make the program faster?
+
+
+Let’s understand how modern computers work.
+
+Suppose you have two arrays of integers
+that you add together.
+The integers are 32-bit.
+You have a modern PC. What do you do?
+
+The trivial answer is shown on the screen.
+
+Some programmers might be
+inclined to use a loop,
+
+but unrolling the code works
+better for this lesson.
+
+You do not need to know any assembler
+to understand this.
+
+We have sixteen integers in one array,
+and sixteen integers in another array.
+These arrays are added together.
+
+So, we have sixteen load operations,
+and sixteen add operations.
+
+As an optimization, the add operation
+also stores the result.
+
+A total of 32 instructions
+are executed on the CPU.
+
+But the PC can do much better.
+
+Since 1997, there have been
+instructions that can do
+two 32-bit add-operations at once.
+
+My computer can do it. Your computer can do it.
+Everyone’s computer can do it.
+
+This is called SIMD.
+Single instruction, multiple data.
+
+With these MMX SIMD instructions
+you only need 24 instructions
+to add these two arrays.
+
+But the PC can do even better.
+
+Pentium 4 introduced the SSE2
+instruction set over 15 years ago.
+
+With these instructions it is possible
+to perform four 32-bit additions
+with a single operation.
+
+But the PC can do better.
+
+Advanced Vector Extensions.
+
+My computer has it,
+and with this architecture,
+
+you only need six instructions,
+total, to load sixteen integers,
+
+add them with another
+sixteen integers,
+
+and store the results
+into sixteen integers.
+
+But… it still doesn’t end here.
+
+A CPU that has AVX-512 can do
+the whole thing with just three
+instructions.
+
+A ten-fold speedup –
+
+compared to the traditional way
+faintly seen on the background!
+
+So, how do we tap this immense power
+from within a C++ compiler?
+
+Oh yes, we can.
+
+The answer is: Arrays.
+Make everything an array!
+
+Vector. They are called vectors,
+even though they are really arrays.
+
+When we speak to the compiler,
+we say “array”,
+
+and when we speak to a scientist,
+we say “vector”.
+
+To process things in parallel,
+we must have things to process in parallel.
+
+Let’s begin with a humble improvement.
+Attempt to process eight pixels
+simultaneously with vectors.
+
+The basic idea is this:
+
+For every single calculation,
+
+do it to all values in an array
+instead of to just one value.
+
+Compilers today are smart enough –
+
+that they automatically convert
+these array operations into –
+
+those extremely efficient
+vector instructions –
+
+that we saw earlier.
+
+You just need to give them a chance.
+
+Well, reputable compilers.
+
+I would not trust Microsoft
+Visual Studio to do it,
+
+but at least GCC and Clang
+are pretty good at it,
+
+and they are getting
+better and better –
+
+at every release.
+
+Intel’s compiler studio
+is also very powerful,
+
+but over the past years, they have
+transformed it into encumberware,
+
+making it extremely difficult to
+acquire and install a free copy,
+
+so I cannot test it.
+
+Now SIMD has some limitations.
+
+Because it literally means applying
+the same instruction to multiple data,
+
+You cannot vectorize different functions,
+or code that is full of if-elses.
+
+You can only vectorize operations
+that are identical across all data.
+
+All data items must be subject
+to exactly same processing.
+
+It is possible to do conditional
+processing within SIMD,
+
+but it requires some tricks.
+
+For instance, Mandelbrot fractal
+calculation involves loops –
+
+that run a different number of
+iterations depending on situation.
+
+For each pixel, a different and
+unpredictable number of loops is run.
+
+In this simplified example,
+76 loops are needed to render 32 columns.
+
+You can vectorize these
+different columns, of course.
+
+For example, four columns
+could be calculated simultaneously.
+
+Does this mean a four-fold speedup?
+
+No, unfortunately it does not.
+
+Remember, all data within the same
+vector must be subject to the same treatment.
+
+This also means the same number of loops!
+
+In reality, it would look like this.
+
+Three loops are performed on
+each column in the first vector,
+
+five loops for each column
+in the second vector, and so on.
+
+Now, even though the number of loops
+must be the same for all items in the vector,
+
+it is possible to write code so that –
+
+only particular elements
+in the vector are affected.
+
+As a result, we get something
+like a 2.5 fold speedup –
+
+compared to processing
+each column separately.
+
+The bottom line is:
+
+performance does not necessarily increase
+at the same rate as the vector size does.
+
+It may not even increase at all.
+It really depends on the data.
+
+Let’s have a look at the actual benchmark now.
+
+Ah, yes. It is clearly faster now.
+
+Whoa! What was that??
+Suddenly it became as slow
+as the non-vectorized version.
+
+And now it’s back–
+Whoa! Again!
+
+What just happened?
+
+In the end, it is twice as fast
+as the previous version,
+
+but these sudden jumps were strange.
+
+Let’s take a look at the code.
+
+This is the iterate function.
+Ah yes, see, here!
+
+These are the SIMD instructions.
+Beauty.
+
+It is delightful to look at code
+that accomplishes stuff.
+
+But wait, what is this?
+These are not vectorized,
+even though they should.
+
+The compiler failed
+to optimize them properly.
+
+Is there a way we can force
+the compiler to generate SIMD code
+
+even when it thinks it
+might not be a good idea?
+
+Glad you asked!
+In fact, there is a very simple way.
+
+OpenMP is a cross-vendor extension
+that defines ‘pragmas’ –
+
+that control how the compiler
+generates code.
+
+We can pepper the code with a few
+strategically placed #pragma omp simd –
+
+which essentially say to the compiler:
+“Try harder”.
+
+The performance of the program is virtually
+identical to the previous version,
+
+except the weird underperformance
+hickups of the implicit-simd version –
+
+no longer exist.
+
+The program is almost perfectly
+twice as fast as the initial version.
+
+
+Intel CilkPlus is another
+extension supported by GCC,
+
+that also provides pragmas that
+tell the compiler to try harder.
+
+
+We will look into CilkPlus
+in more detail in the next episode,
+
+but to utilize CilkPlus
+SIMD directives,
+
+this was all that you need to know.
+
+The performance is exactly same
+as with OpenMP, which makes sense:
+
+it is still the same compiler,
+just commanded in a different language.
+
+Now there is still one
+avenue I haven’t tested.
+
+
+Using Intel intrinsics.
+
+Intel intrinsics are…
+a bit different.
+
+You are confused.
+Let me explain why.
+
+See this code on the screen?
+
+This is how the code becomes
+with Intel intrinsics.
+
+I am not kidding.
+
+Here is how the whole program
+looks with intrinsics.
+
+This code combines the worst
+sides of C and assembler.
+
+It must be written with a specific
+processor architecture in mind,
+
+and it will neither compile nor run –
+
+on anything other than that architecture.
+
+And here’s how it runs on my computer.
+
+Across the board it is about
+3× faster than anything else so far.
+
+Curiously, the parts where periodicity
+checking is disabled,
+
+i.e. the parts that were exceptionally
+slow in the implicit-simd version –
+
+are exceptionally fast in this version.
+
+Conclusion:
+
+Modern microprocessors
+are very powerful,
+
+and modern compilers
+are really smart.
+
+But the common wisdom,
+
+that you should not try
+to outsmart your compiler,
+
+because allegedly chances
+are that it knows –
+
+a whole lot more about
+optimization than you do,
+
+well, I think I just proved
+that to be hogwash.
+
+We made the program
+three times faster –
+
+without adding threads and
+without changing the algorithm,
+
+simply by doing
+the compiler’s job, but better.
+
+I am Bisqwit.
+
+The next time we will see what happens –
+
+when we bring threads into the mix.
+
+And, how to do threads in GCC.
+There are surprisingly many ways!
+
+Have a very nice day,
+see you soon again.

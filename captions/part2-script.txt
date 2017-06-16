@@ -1,0 +1,556 @@
+=== INTRO
+
+Shalom lekulam!
+
+In the previous episode we discussed
+ways to make programs faster -
+
+using nothing but
+a single CPU core.
+
+Now we will pick up from
+where we left,
+
+and take the vanilla
+Mandelbrot fractal renderer
+and make it faster
+with multiple CPU cores.
+
+=== CPU AND CORES
+
+As you are probably well aware,
+modern CPUs are designed to have
+multiple CPU cores.
+
+For example, here is a photograph
+of an AMD Ryzen 7 CPU die.
+
+Each core can execute different
+instructions, and in fact,
+
+run different programs,
+simultaneously.
+
+This is in contrast to SIMD,
+
+where a single core executes
+a single instruction,
+
+but applies it simultaneously
+to multiple data.
+
+You can, of course use SIMD and
+multiple cores simultaneously.
+
+Doing so would effectively
+multiply the SIMD benefits –
+
+by the number of cores.
+
+
+==== HYPERTHREADING
+
+Now if you look at picture,
+you notice that —
+
+this processor has eight cores.
+
+But according to AMD specifications,
+
+the processor can actually
+run sixteen threads simultaneously.
+
+This is called hyperthreading.
+
+How does it work?
+
+Let’s study the individual
+core for a moment.
+
+These are the components of
+an individual AMD Zen core.
+
+During normal operation
+of the CPU,
+
+not all parts are utilized
+at 100 % continuously.
+
+A component such as ALU
+might be waiting for data –
+
+from the Load & Store unit,
+
+or there are no floating point
+instructions in the pipeline,
+
+meaning the FPU has
+no chance but to idle,
+
+and so on.
+
+Hyperthreading attempts to
+better utilize these resources –
+
+within a single CPU.
+
+=== CAVEATS
+
+Now, there are caveats,
+like with SIMD.
+
+Calculating the benefit gained —
+
+from running a program
+on multiple cores is not trivial.
+
+If your program needs
+to access the memory,
+
+all the requests to read or write
+memory must be funnelled –
+
+through the same RAM I/O interface.
+
+With hyperthreading,
+two threads are competing –
+
+for the same shared resources
+within the CPU core.
+
+And if the threads
+do write to the RAM,
+
+there are all sorts of
+cache coherency issues –
+
+that will cause the cores to wait,
+
+until data is synchronized
+between different caches.
+
+For that topic, I recommend
+the excellent article series
+
+called “What every programmer
+should know about memory” –
+
+by Ulrich Drepper.
+
+The link can be found
+in the video description.
+
+And there’s also the
+mutual exclusion stuff,
+
+which I have explained in the
+C++14 thread tutorial video.
+
+But the bottom line is
+that like with SIMD,
+
+performance does not necessarily increase
+at the same rate as the number of threads.
+
+It may even decrease.
+It really depends on the situation.
+
+=== OPENMP
+
+Now. By far the simplest way
+to add threads to your program –
+
+is with OpenMP. Watch this.
+
+There. Done.
+
+I have an article
+on my website –
+
+that explains OpenMP
+in very deep detail.
+
+The link is in the
+video description.
+
+But for the sake of
+introduction,
+
+let’s review quickly what
+happened on that line.
+
+The OpenMP pragma
+is a very concise way –
+
+of adding parallelism
+to your program –
+
+without changing its semantics.
+
+First, the word “parallel”
+instructs the OpenMP system library
+
+to generate a “team” of threads.
+
+Then, the word “for” causes
+the following for-loop –
+
+to be divided across
+that team of threads,
+
+so that each loop iteration
+is run exactly once,
+
+but multiple iterations
+may run concurrently.
+
+The clause “schedule”
+controls how exactly –
+
+the iterations are
+assigned to each thread.
+
+The word “dynamic” answers
+that question.
+
+In the dynamic schedule,
+each thread processes
+a single loop iteration,
+
+and then chooses the next
+available one.
+
+This can cause a resource
+congestion where all threads
+
+poll a shared variable,
+
+but it works very well
+for Mandelbrot rendering –
+
+where every row takes
+a long time to calculate.
+
+The “reduction” clause instructs
+the compiler to generate special code
+
+where every thread gets a private
+copy of the specified variables,
+
+and once the thread is done,
+
+the result is merged into the
+actual variable by that name.
+
+This approach is called “reducing”.
+
+The term should be familiar –
+
+to people who deal with
+functional programming.
+
+Here, the “n_inside" variable
+is reduced by calculating
+
+the sum of the private copies
+of the “n_inside” variable.
+
+The goal in OpenMP
+is to write such pragmas —
+
+that the code will compile
+and work just fine —
+
+even if the compiler
+ignores the pragma.
+
+Nearly all compilers
+understand OpenMP,
+
+but usually you have to
+enable it explicitly.
+
+For example, in GCC and Clang
+you have to specify -fopenmp,
+
+or the compiler will ignore
+your pragmas.
+
+But like I said, you can
+find very detailed information
+
+about OpenMP on my website.
+
+Check the link
+in the video description.
+
+Now, this program is exactly
+like the “vanilla” program,
+
+except for the single OpenMP
+directive that I just added.
+
+There is no SIMD in this version.
+
+Let’s see how it runs.
+
+It is… about seven times faster
+than the vanilla version,
+
+when run on my quad-core E3-1281 v3
+with hyperthreading.
+
+Not bad for a single line of code!
+
+=== CILKPLUS
+
+In the previous episode
+I mentioned Intel CilkPlus.
+
+I included it in this video,
+
+because GCC supports it
+out from the box.
+
+CilkPlus extends C++
+with three keywords.
+
+The first two listed keywords
+deal with asynchronous functions,
+
+and the third one is for applying
+threads into a for-loop,
+
+just like in OpenMP.
+
+But in OpenMP there was also
+this reduction clause.
+
+Is there something equivalent
+in CilkPlus?
+
+Yes, and no.
+
+CilkPlus comes with a large
+template library,
+
+which defines various reducers
+to use with thread programming.
+
+Here is an example how to
+use the add-reduder.
+
+It is somewhat invasive
+to the program.
+
+The same code definitely will
+not compile without CilkPlus support.
+
+But you do what you must.
+
+And this is the performance graph.
+
+It is somewhat slower than
+the OpenMP solution.
+
+This is because CilkPlus defines
+a particular worksharing algorithm –
+
+that just happens not to be
+optimal for this application.
+
+There is also considerable jitter.
+
+I am not sure, but I suspect
+that the CilkPlus library –
+
+is creating and destroying
+new threads continuously –
+
+rather than using a pool of
+threads like OpenMP does.
+
+Or the problem is in mutex
+actions in the reducer.
+
+In any case, it ends up
+slower than OpenMP.
+
+=== STD THREADS
+
+Intel also has a different
+thread library,
+
+called Thread Building Blocks,
+or TBB for short.
+
+But because it is
+just a library,
+
+and it is neither
+part of C++ standard,
+
+nor is it supplied
+with my compiler,
+
+I will not cover
+it in this video.
+
+Besides, the standard C++
+already has threads.
+
+I have made a video about
+C++14 threads in the past,
+
+so let’s jump straight
+to the code.
+
+I don’t actually know what
+is the recommended way –
+
+to determine the optimal
+number of threads to run,
+
+but I hardcoded the number
+as eight here,
+
+because my CPU has four cores
+and hyperthreading.
+
+The for-loop scheduling
+and the reduction algorithm –
+
+are exactly the same here
+as with OpenMP, earlier.
+
+And now, when we
+run the program,
+
+we see the performance
+is also exactly the same –
+
+as with the OpenMP version.
+
+=== AFTERWORDS
+
+Conclusion:
+
+Your CPU has multiple cores,
+and it is wise to utilize them,
+
+because it is unlikely that
+clock speeds will increase –
+
+significantly anymore.
+
+It may not be always possible
+to use threads,
+
+and even when it is possible,
+it might not necessarily help.
+
+
+Threads and SIMD are not
+mutually exclusive.
+
+In the first episode,
+
+we only dealt with SIMD
+and ignored threads.
+
+In this episode,
+we only dealt with threads
+and ignored SIMD.
+
+In the next and final episode,
+
+we will bring yet another
+technique into the mix —
+
+and see what happens when we
+combine all three methods!
+
+I am Bisqwit,
+and I wish you shalom
+
+into all areas of your life.
+
+But before the video fades out,
+
+there is something else
+I wish to say.
+
+This series has been
+made possible —
+
+by the support of some
+very particular people:
+
+Westmeal, Vincent Hamilton,
+Justin O'Conner, David Laks,
+Cordite, Connor Olding,
+Peter Cooper, Colin Mills,
+Joe Szymanski, Nejc Vivod,
+p l, Mitchell Taulor,
+Adrian Papari, Brandon Pelfrey,
+Adam Ewing, Bernard, David Nuon,
+Psyconics,
+Christopher Johnsrud Fullu,
+Greg Pulford, Sebastien Morenne,
+Gustav Louw, Piotr Michniewski,
+Mengda Yang, Tom, Marty,
+Sven Almgren, Andrei Popa,
+Mike Mayer, Jens,
+Billzo Aiken, Bryce Lanham,
+Radek Valášek, Jon Mayo,
+Riku Rajaniemi, Joshua DiNardo,
+Mike, Alexander Simruat,
+Nicholas Londey, Tiogshi Laj,
+Andreas Wilfer, Tom Hodder,
+cokernel, André Waage Sørensen,
+Andrew Nicehurt, Henrique Gemignani,
+Sergio Gonzalez, Andrew Anderson,
+Arne Wieding, Ed Baker,
+Simon Vacker, Keloran,
+David Streeter, João Assunção,
+atzkey, Zeb DeOs, TV4ELP,
+Josué Vicioso, BJ ,Alex T. Jensen,
+Gabriel Garcia, ben gras,
+Darko Meszaros, Jose Victor Ramos Sanchez,
+Patrick Krämer, Cassandra Misch,
+Ryan Emmanuel Tongol,
+Demian Terentev, quaixor, Hawkins,
+Maxwell Kepler, Adrian Siekierka,
+Kamil Dąbrowski, Dan Amlund Thomsen,
+Hrnek Bezucha, Tuomas Hyvönen,
+Ryan Young, Jacob Shaffer,
+Alessandro Gatti, Mike Teehan,
+Benjamin Clegg, Kalle Siukola,
+William, Finn Bear,
+Alexander Bachler Jansson,
+Blaisa Saunders, Ron Hockman,
+Marcus Therkildsen,
+Sebastian Stabinger, Georges Dupéron,
+Stepan Usatiuk, Mike Warren,
+Bambi Vigren, Philipp Hafner,
+soundsgod, Sean Phillips,
+Alex Yancey, Geldo Silva,
+Andrew Dinihan, and Prographer.
+
+You have responded
+to my Patreon campaign,
+
+or have contributed on PayPal.
+
+You guys are really kind.
+
+Huge thanks to anyone who
+shares these videos on Twitter, Facebook,
+or other social media as well.
+
+If you wish to join this list,
+
+follow the links
+in the video description.
+
+
