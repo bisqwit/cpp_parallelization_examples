@@ -238,7 +238,7 @@ public:
     }
 } display;
 
-    #define MAINLOOP_START()             /**/
+    #define MAINLOOP_START(n)            /**/
     #define MAINLOOP_GET_CONDITION()     GetTime() < 5
     #define MAINLOOP_SET_COORDINATES()   do { \
             zr = -0.743639266077433; \
