@@ -4,9 +4,19 @@
 #include <map>
 #include <cmath>
 #include <algorithm>
+#include <thread>
+
 
 #include <gd.h>
 #include <cairo.h>
+
+#if 1
+static constexpr unsigned FRAME_INTERVAL = 5; // How frequently frames are generated (smaller number=move frames)
+static constexpr unsigned HYSTERESIS     = 8; // How long until bloom fades out (1=shortest time)
+#else
+static constexpr unsigned FRAME_INTERVAL = 3600;
+static constexpr unsigned HYSTERESIS     = 1;
+#endif
 
 static constexpr char delimiter = ',';
 static std::vector<std::string> split(const std::string& s)
@@ -65,15 +75,15 @@ static int ClampWithDesaturation(int r,int g,int b)
     else if(luma <= 0) { r=g=b=0; }
     else
     {
-        double sat = 10000;
-        if(r > 255) sat = std::min(sat, (luma-255e4) / (luma-r)); else if(r < 0) sat = std::min(sat, luma / (double)(luma-r));
-        if(g > 255) sat = std::min(sat, (luma-255e4) / (luma-g)); else if(g < 0) sat = std::min(sat, luma / (double)(luma-g));
-        if(b > 255) sat = std::min(sat, (luma-255e4) / (luma-b)); else if(b < 0) sat = std::min(sat, luma / (double)(luma-b));
+        double sat = 1., lum = luma / 1e4;
+        if(r > 255) sat = std::min(sat, (lum-255) / (lum-r)); else if(r < 0) sat = std::min(sat, lum / (double)(lum-r));
+        if(g > 255) sat = std::min(sat, (lum-255) / (lum-g)); else if(g < 0) sat = std::min(sat, lum / (double)(lum-g));
+        if(b > 255) sat = std::min(sat, (lum-255) / (lum-b)); else if(b < 0) sat = std::min(sat, lum / (double)(lum-b));
         if(sat != 1.)
         {
-            r = (r - luma) * sat/1e4 + luma; r = clamp(r,0,255);
-            g = (g - luma) * sat/1e4 + luma; g = clamp(g,0,255);
-            b = (b - luma) * sat/1e4 + luma; b = clamp(b,0,255);
+            r = (r - lum) * sat + lum; r = clamp(r,0,255);
+            g = (g - lum) * sat + lum; g = clamp(g,0,255);
+            b = (b - lum) * sat + lum; b = clamp(b,0,255);
         }
     }
     return unsigned(r)*65536u + unsigned(g)*256u + b;
@@ -87,7 +97,10 @@ static void BloomPostprocess(unsigned short* prevpic, const unsigned* curpic, un
     static short r2[W*H], g2[W*H], b2[W*H], r3[W*H], g3[W*H], b3[W*H];
     static short temp1[W*H], temp2[W*H], temp3[W*H], temp4[W*H], temp5[W*H], temp6[W*H];
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel
+    {
+
+    #pragma omp for schedule(static)
     for(unsigned y=0; y<H; ++y)
         for(unsigned x=0; x<W; ++x)
         {
@@ -106,18 +119,16 @@ static void BloomPostprocess(unsigned short* prevpic, const unsigned* curpic, un
             double diffpow = std::min(wanted_br, 32*32u) / double(32*32);
             double lumafactor = (r1*2126u + g1*7152u + b1*722u) / 2550000.;
 
-            r[y*W+x] = r1 * std::pow(diffpow, 4.)*6 / lumafactor;
-            g[y*W+x] = g1 * std::pow(diffpow, 4.)*6 / lumafactor;
-            b[y*W+x] = b1 * std::pow(diffpow, 4.)*6 / lumafactor;
+            r[y*W+x] = r1 * std::pow(diffpow, 4.)*9 / lumafactor;
+            g[y*W+x] = g1 * std::pow(diffpow, 4.)*9 / lumafactor;
+            b[y*W+x] = b1 * std::pow(diffpow, 4.)*9 / lumafactor;
 
-            constexpr unsigned hysteresis = 8;
-
-            prevpic[(y*W+x) * 3 + 0] = (r0 * (hysteresis-1) + r1*prev_mul * 1) / hysteresis;
-            prevpic[(y*W+x) * 3 + 1] = (g0 * (hysteresis-1) + g1*prev_mul * 1) / hysteresis;
-            prevpic[(y*W+x) * 3 + 2] = (b0 * (hysteresis-1) + b1*prev_mul * 1) / hysteresis;
+            prevpic[(y*W+x) * 3 + 0] = (r0 * (HYSTERESIS-1) + r1*prev_mul * 1) / HYSTERESIS;
+            prevpic[(y*W+x) * 3 + 1] = (g0 * (HYSTERESIS-1) + g1*prev_mul * 1) / HYSTERESIS;
+            prevpic[(y*W+x) * 3 + 2] = (b0 * (HYSTERESIS-1) + b1*prev_mul * 1) / HYSTERESIS;
         }
 
-    #pragma omp parallel sections
+    #pragma omp sections
     {
         blur<3>(r, r2, temp1, W,H, 30.f);//std::hypot(W,H)/30.f);
         #pragma omp section
@@ -132,7 +143,7 @@ static void BloomPostprocess(unsigned short* prevpic, const unsigned* curpic, un
         blur<3>(b, b3, temp6, W,H, 140.f);//std::hypot(W,H)/30.f);
     }
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp for schedule(static)
     for(unsigned y=0; y<H; ++y)
         for(unsigned x=0; x<W; ++x)
         {
@@ -142,6 +153,8 @@ static void BloomPostprocess(unsigned short* prevpic, const unsigned* curpic, un
             unsigned b = ((p >>  0) & 0xFF) + b2[y*W+x] + b3[y*W+x];
             targetpic[y*W+x] = ClampWithDesaturation(r,g,b);
         }
+
+    }
 }
 
 
@@ -162,10 +175,11 @@ int main()
         {0x20AA00, "cilkplus-loop" },
         {0xE0FFA0, "thread-loop" },
         {0xF00000, "openmp-offload" },
-        {0x703000, "openacc-offload" },
+        {0xD0D000, "openacc-offload" },
         {0xAA3320, "cuda-offload" },
         {0xEE5540, "cuda-offload2" },
-        {0xFFAA55, "cuda-offload3" }
+        {0xFFAA55, "cuda-offload3" },
+        {0xFF22FF, "cuda-offload3b" }
     };
 
     static unsigned pixels[xres*yres];
@@ -175,22 +189,33 @@ int main()
 
     auto SaveFrame = [](const std::string& filename, const unsigned* pixels)
     {
-        fprintf(stderr, "Saving %s...\n", filename.c_str());
-        gdImagePtr im = gdImageCreateTrueColor(xres, yres);
-        ////BgdImageSaveAlpha(im, 1);
-        gdImageAlphaBlending(im, 0);
-        for(unsigned p=0, y=0; y<yres; ++y)
-            for(unsigned x=0; x<xres; ++x, ++p)
-                gdImageSetPixel(im, x,y, pixels[p]);// ^ 0xFF000000);
+        static struct { std::vector<unsigned> pixels;
+                        std::thread saver;
+                        bool        started;
+                      } data;
 
-        std::FILE* fp = std::fopen(filename.c_str(), "wb");
-        if(!fp) std::perror(filename.c_str());
-        if(fp)
+        if(data.started) data.saver.join();
+        data.pixels.assign(pixels, pixels + xres*yres);
+        data.saver = std::thread([filename]()
         {
-            gdImagePng(im, fp);
-            std::fclose(fp);
-        }
-        gdImageDestroy(im);
+            fprintf(stderr, "Saving %s...\n", filename.c_str());
+            gdImagePtr im = gdImageCreateTrueColor(xres, yres);
+            ////BgdImageSaveAlpha(im, 1);
+            gdImageAlphaBlending(im, 0);
+            for(unsigned p=0, y=0; y<yres; ++y)
+                for(unsigned x=0; x<xres; ++x, ++p)
+                    gdImageSetPixel(im, x,y, data.pixels[p]);// ^ 0xFF000000
+
+            std::FILE* fp = std::fopen(filename.c_str(), "wb");
+            if(!fp) std::perror(filename.c_str());
+            if(fp)
+            {
+                gdImagePng(im, fp);
+                std::fclose(fp);
+            }
+            gdImageDestroy(im);
+        });
+        data.started = true;
     };
 
     cairo_surface_t* sfc = cairo_image_surface_create_for_data
@@ -200,18 +225,18 @@ int main()
 
     auto AddAnimationFrame = [&](const std::string& which, unsigned n)
     {
+        static unsigned framecounter=0;
     #if 1
         std::fprintf(stderr, "Processing... "); std::fflush(stderr);
         static unsigned newpixels[xres*yres];
         cairo_surface_flush(sfc);
-        BloomPostprocess<xres,yres>(prev_pixels, pixels, newpixels);
+        /*if(framecounter >= 11000) */BloomPostprocess<xres,yres>(prev_pixels, pixels, newpixels);
     #else
         const auto* newpixels = pixels;
     #endif
-        static unsigned framecounter=0;
         char Buf2[32]; std::sprintf(Buf2, "%05d-", framecounter++);
         char Buf[32]; std::sprintf(Buf, "-%04d.png", n);
-        SaveFrame(Buf2+which+Buf, newpixels);
+        /*if(framecounter >= 11099) */SaveFrame(Buf2+which+Buf, newpixels);
     };
 
     constexpr double   min_val = 50., max_val = 40000;
@@ -287,7 +312,7 @@ int main()
         prev_pixels[n*3+2] = b*prev_mul;
     }
 
-    unsigned legend_ycoordinate = yres - 120 - 40*11;
+    unsigned legend_ycoordinate = yres - 120 - 40*order.size();
     for(const auto& s: order)
     {
         //if(s.second == "openmp-offload" || s.second == "openacc-offload") continue;
@@ -295,9 +320,12 @@ int main()
         if(s.second == "cuda-offload")  width = 2.2;
         if(s.second == "cuda-offload2") width = 2.2;
         if(s.second == "cuda-offload3") width = 2.4;
+        if(s.second == "cuda-offload3b") width = 4.0;
         if(s.second == "cilkplus-loop") width = 2.4;
         if(s.second == "vanilla" || s.second == "explicit-simd") width = 5.0;
         if(s.second == "thread-loop") width = 1.5;
+        if(s.second == "openmp-offload")  width = 2.2;
+        if(s.second == "openacc-offload") width = 1.9;
         if(s.second == "openmp-loop") width = 8;
 
         const double r = ((s.first >> 16) & 0xFF) / 255.;
@@ -339,8 +367,7 @@ int main()
                 cairo_line_to(c, xcoord(frame), ycoord(value));
             }
 
-            if((frame+1) % 5 == 0) //
-            //if(frame == (maxframe+1000))
+            if((frame+1) % FRAME_INTERVAL == 0 || frame == (maxframe+1000)) //
             {
                 cairo_set_line_width(c, width);
                 cairo_set_source_rgb(c, r,g,b);
