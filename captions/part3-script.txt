@@ -1,0 +1,1142 @@
+Shalom!
+
+It is time for the final episode
+in this three-part series
+about learning to utilize
+parallel resources
+in C++ programming.
+
+In the first episode we explored
+how to extract the best performance
+from a single CPU core.
+
+In the second episode,
+we learned to utilize
+all cores within the CPU.
+
+But what would be
+even more efficient,
+
+than utilizing a processor
+to the maximum?
+
+Well, of course, utilizing
+more than one processor!
+
+So, how exactly could
+we go about doing that?
+
+How about using multiple
+identical processors?
+
+This is no different than
+using multiple CPU cores,
+
+and we already covered that
+in episode two.
+
+So, scratch that off the list.
+
+How about using multiple computers?
+
+This is called cluster
+computation, or clustering.
+
+Clustering is usually,
+but not always,
+
+done on operating system level
+with tools such as MPICH.
+
+The same program is started
+on multiple computers,
+
+with data collected
+in one place.
+
+It usually does not
+require any changes
+into the program’s source code,
+
+and that kind of thing is not
+what I had in my mind.
+
+That leaves option three:
+Using multiple different
+processors.
+
+Within modern PC hardware,
+there is often found
+a very powerful coprocessor.
+
+This coprocessor is the
+graphics processing unit,
+
+or GPU for short.
+
+The GPU is capable of
+general purpose computation,
+
+much like the CPU,
+
+but with advantages
+and disadvantages:
+
+Unlike the CPU, which can run
+maybe four or sixteen threads,
+
+the GPUs have hundreds
+or even thousands.
+
+According to the Steam Hardware
+& Software survey of May 2017,
+
+the most popular
+gaming graphics gard –
+
+is currently
+the NVidia GTX 750 Ti.
+
+It has 640 CUDA cores.
+
+The GTX 1080 Ti, released
+just couple of months ago,
+
+has 3584 CUDA cores.
+
+And guess what?
+
+The GNU Compiler Collection
+(GCC) supports it.
+
+Computing on a device
+is called “offloading”.
+
+Right now, GCC supports offloading
+to three different platforms:
+
+NVidia PTX-enabled graphics cards;
+
+Heterogenous System Architecture,
+or HSA for short,
+
+which is only still used for –
+
+offloading code
+to AMD graphics cards;
+
+and Intel Many Integrated Core
+architecture, or MIC for short,
+
+which is mainly used
+for running code on –
+
+Intel Xeon Phi coprocessors, which
+are based on the x86 architecture,
+
+but are capable of running
+256 concurrent threads or more.
+
+Sadly I don’t have one.
+They are quite expensive.
+
+Offloading works like this:
+
+You write a single program.
+
+Within that program,
+
+some parts will be compiled
+to be run on the host computer,
+
+and some parts will be compiled
+to be run on the device.
+
+Some parts may be compiled for both.
+
+The same goes for constant data,
+and also for variables.
+
+The device and the host
+computer might not share RAM,
+
+which means that all
+arrays and other data –
+
+must be passed back and
+forth between these units.
+
+Offloading in GCC is done with –
+
+one of the following
+two standard extensions:
+
+OpenMP and OpenACC.
+
+These features are
+not usually enabled –
+
+in your Linux distribution.
+
+You can enable them by
+building GCC from source code.
+
+Instructions can be found
+on the GCC website.
+
+Let’s study OpenMP first.
+
+Our baseline program is
+the vanilla single-threaded –
+
+non-SIMD Mandelbrot
+fractal renderer –
+
+that I introduced in episode 1.
+
+The plan is to
+have the heavy stuff —
+
+the fractal calculation —
+
+all happen on the external device.
+
+So, Iterate is declared as target code.
+
+Anything declared between
+these two pragmas –
+
+will be compiled
+for the target device,
+
+not for the host.
+
+Then, some reorganization,
+
+to put all the target device
+code in one place,
+
+and the host device code
+in another place.
+
+Separate those two parts.
+
+The offloading itself
+happens with a single pragma,
+
+just like was the case
+for parallelization in episode 2.
+
+Finally we take the
+resulting iteration counts –
+
+for each pixel
+using a STL library call,
+
+and convert the iteration
+counts into colors locally,
+
+which is a quick operation.
+
+Let’s review the components
+of the OpenMP pragma.
+
+The word “target” means
+that the next statement –
+
+will be run on the device
+rather than on the host.
+
+The word “teams” means,
+that on the device,
+
+a league of teams will be created.
+
+This means that instead of
+a single team of threads,
+
+there will be multiple groups,
+
+or gangs or blocks or teams,
+whatever you want to call them,
+
+and each of them 
+ontain multiple threads.
+
+“Distribute parallel for” means –
+
+that the following for-loop
+will be divided –
+
+among those threads,
+
+so that each iteration
+will be run exactly once –
+
+in unspecified order,
+
+but multiple iterations
+may run concurrently.
+
+“Collapse(2)” tells
+OpenMP that –
+
+the following TWO for-loops
+should be treated as one unit;
+
+all combinations of the
+iterations of the two loops –
+
+should be distributed
+across threads.
+
+Without the collapse keyword,
+
+only the outer for-loop
+would be distributed,
+
+and the inner for-loop
+would be run consecutively –
+
+by each thread.
+
+The “map” keyword
+controls the relationship –
+
+between host memory
+and device memory.
+
+Specifically, we send these
+variables “to” the device,
+
+and once the device
+has done calculating,
+
+we receive the “results”
+array “from” the device.
+
+When you run the program
+that uses OpenMP offloading,
+
+you use the OMP_DEFAULT_DEVICE
+environment variable –
+
+to choose which
+device to run on.
+
+In my case, I want to run it
+on the NVidia GTX 970,
+
+so I select OMP_DEFAULT_DEVICE=1.
+
+And the results are!
+
+Huh? … Wha? … I don’t understand.
+
+Why is it slow?
+
+It is definitely running
+on the GTX 970,
+
+according to nvidia-settings .
+
+O-kay…! Now it crashed.
+
+L-let’s move ahead;
+
+maybe there will be
+an explanation later.
+
+OpenACC!
+
+OpenACC is a different
+standard by different people,
+
+that does pretty much
+the same as OpenMP,
+
+except its focus is
+totally on offloading,
+
+where as OpenMP began –
+
+from making native
+parallelism easy.
+
+Translating OpenMP pragmas
+into OpenACC pragmas –
+
+can be easy or
+it can be difficult.
+
+At easiest, it is just
+a change of terminology.
+
+What OpenMP calls a team,
+OpenACC calls a gang,
+
+and so on.
+
+OpenACC defines a very
+elaborate memory model –
+
+involving allocations.
+
+It would take me
+at least half an hour –
+
+to describe how it all works,
+
+but in this example –
+
+I just copy data in and out.
+
+Done. Let’s check
+out the performance.
+
+It is… eh, well,
+
+it’s faster than
+the OpenMP offloading version,
+
+but still much slower than
+the vanilla offloading version.
+
+And it crashed too.
+
+Apparently it hit
+a watchdog timeout.
+
+It turns out –
+
+that the NVidia driver
+kills the task –
+
+if the function runs for
+more than seven seconds.
+
+Now, it is quite surprising –
+
+that the GPU-accelerated program
+is slower than a native program,
+
+but there may be an explanation.
+
+Graphics cards may have
+hundreds or thousands of threads,
+
+but what they have
+is actually –
+
+functionally closer to SIMD
+than to threads.
+
+The GPU acceleration works best –
+
+with programs where
+the exact same calculation –
+
+is performed on
+a large set of data.
+
+Unlike CPU SIMD,
+
+GPU acceleration can
+cope with situations –
+
+where the calculations
+diverge into different branches –
+
+using if-elses,
+
+but the performance will
+suffer greatly –
+
+whenever that happens.
+
+To give GPU acceleration
+the final benefit of doubt,
+
+I went ahead and translated
+the program into CUDA.
+
+This means that
+instead of GCC,
+
+we will use NVidia’s NVCC –
+
+to compile the program.
+
+CUDA is actually –
+
+just a fancy name
+for plain old C++,
+
+with some extensions.
+
+You heard it:
+CUDA is C++.
+
+If you can write C++,
+you can write CUDA.
+
+Now, the extensions that
+make CUDA useful are:
+
+Each variable declaration
+can be prefixed –
+
+with an optional attribute:
+Constant, device, or shared.
+
+These attributes deal with
+read/write access and lifetime.
+
+Each function declaration
+can be prefixed –
+
+with an optional attribute:
+
+Device, host,
+device host, and global.
+
+The entry-point between
+host-code and GPU code –
+
+is called a kernel,
+and it is indicated –
+
+by the __global__ keyword.
+
+Kernels are invoked using
+a special syntax –
+
+that resembles the
+C++ template parameters.
+
+The two parameters within
+these special brackets –
+
+are the number of blocks,
+
+and the number of threads
+per block.
+
+These parameters are actually
+three-dimensional entities,
+
+but I usually treat
+them as scalars.
+
+Within the kernel,
+the compiler defines –
+
+a set of variables,
+that can be read:
+
+blockDim, which is same
+as the block dimension –
+
+that was passed in the
+special bracket parameters.
+
+blockIdx is the currently
+being executed block index.
+
+It runs from zero
+to the block dimension.
+
+threadIdx is the currently
+being executed thread index.
+
+It runs from zero to
+the thread limit –
+
+that was passed in the
+special bracket parameters.
+
+warpSize is –
+
+architecture-dependent
+number of threads per warp.
+
+The warp is equivalent
+to a SIMD unit size.
+
+Imagine each of these Chinese
+letters is a single thread.
+
+A single block can include
+a number of threads,
+
+but all threads belonging
+to a single warp –
+
+always execute exactly same
+code, for different data.
+
+If your SIMD code
+contains branches,
+
+the GPU will temporarily
+stop all the other threads –
+
+in the same warp,
+
+because threads
+belonging to one warp –
+
+can only execute
+one sequence of code.
+
+Essentially the performance
+would diminish –
+
+by a factor equivalent
+to the warp size.
+
+The good news is that
+unlike in CPU SIMD,
+
+the GPU driver can actually
+migrate threads between warps –
+
+to utilize them
+more efficiently,
+
+but this is only
+a best-effort process –
+
+and how exactly it works –
+
+is neither disclosed
+nor set in stone.
+
+CUDA also defines
+some vector datatypes.
+
+These are vector datatypes
+in name only;
+
+CUDA hardware contains
+no SIMD instructions,
+
+because the hardware
+itself is a SIMD machine.
+
+According to my tests,
+
+there is no performance
+benefit to using these.
+
+And, CUDA contains
+a huge library –
+
+of functions both for
+the host and the device.
+
+And by huge,
+I mean it is massive.
+
+There are like 150000
+lines of physical code –
+
+in the header files alone.
+
+That number is within
+the same ballpark –
+
+as the amount of code
+in a recent Linux kernel,
+
+and that was just header files.
+
+You could spend a year –
+
+just learning how to use
+all those libraries.
+
+When converting the
+fractal renderer –
+
+into a CUDA program,
+
+the first order business is –
+
+to convert the Iterate function
+into a kernel.
+
+This is done by adding
+the __global__ attribute.
+
+Now because this function will
+be called thousands of times –
+
+with identical parameters,
+
+with only the block
+and thread indexes –
+
+differentiating
+the different calls,
+
+we will need a couple
+of more data items –
+
+to make the parameters useful.
+
+Namely, the center coordinate
+in the fractal, the zoom scales,
+
+and a pointer to where all
+the results will be stored.
+
+Of course, to invoke the kernel,
+we will use the bracket syntax –
+
+introduced at 9:46 in this video.
+
+The number of blocks
+times the number of threads –
+
+must be at least as big
+as the results array.
+
+I set the number of threads
+arbitrarily as 128,
+
+and the number of blocks
+is calculated from the need.
+
+Now the GPU code cannot
+write directly –
+
+into the host computer’s memory,
+
+so we need to allocate memory
+directly from the graphics card.
+
+The cudaMalloc function
+allocates GPU memory.
+
+This memory pointer
+will be passed to the kernel,
+
+and the cudaMemcpy function,
+invoked here,
+
+will copy the data
+from the GPU memory –
+
+into the host memory,
+
+once the GPU code
+has done executing.
+
+Here we go!
+
+Ah. Finally, it’s faster
+than anything else so far.
+
+It dances a little with
+the OpenMP thread version,
+
+but then shakes it
+off with a huge margin.
+
+In the end, this is
+17 times faster –
+
+than the vanilla version,
+
+and 2.5 times faster
+than the thread loop.
+
+Can I make it faster?
+
+Well first of all –
+
+I think the transfer
+between GPU and host memory –
+
+may be a bottleneck.
+
+I should at least try
+to see what happens –
+
+if I reduce the array
+of 32-bit floats –
+
+into an array of 16-bit ints.
+
+I should also
+try multiple streams.
+
+CUDA operates using
+a stream of operations.
+
+A stream is like a pipe –
+
+from which the graphics card
+driver pulls tasks,
+
+that it processes in a sequence.
+
+Right now my stream
+looks like this.
+
+Calculation, transfer,
+calculation, transfer.
+
+Each period of calculation –
+
+is followed by a period
+of memory transfer.
+
+During the memory transfer,
+
+the CUDA cores are
+actually idle,
+
+waiting for work.
+
+But it is actually possible –
+
+to have more than
+one stream in CUDA.
+
+If I start another task
+in the second stream –
+
+when the first stream
+begins transferring data,
+
+and vice versa,
+
+the calculation tasks on GPU
+would be performed back to back,
+
+with absolutely no idle time.
+
+It would mean perfect
+100% GPU utilization.
+
+Let’s try that.
+
+So, two streams.
+
+To support the two streams –
+
+we need all kinds of book-keeping.
+
+There is a counter for the
+next stream to be occupied,
+
+the number of streams
+currently processing data,
+
+and flags indicating the same.
+
+They are created with
+the cudaStreamCreate function.
+
+The memory buffers must
+also be duplicated.
+
+The memory copying will now happen –
+
+with cudaMemcpyAsync, meaning
+it will proceed asynchronously.
+
+All of the remaining changes
+to the main program –
+
+are just gymnastics around
+the asynchronous relationship –
+
+between the calculations and
+the processing of the results.
+
+The main loop now begins
+with interpreting the results;
+
+that is,
+
+converting the array of
+iteration counts into pixels,
+
+rendering the pixels,
+
+and updating the inaptly named
+boolean variable “NeedMoment” –
+
+that controls whether –
+
+periodicity checking will be
+enabled for the next frame.
+
+Before we can assume
+the results are available,
+
+the cudaStreamSynchronize
+function must be called.
+
+It waits until all commands
+in the specified stream –
+
+are completed.
+
+The result is a very slight
+performance improvement.
+
+And by very slight, I mean –
+
+it’s almost no improvement at all.
+
+In the end it's like
+a single percent faster –
+
+than the first CUDA version.
+
+Totally negligible.
+
+As expected, the margin
+to the CPU versions –
+
+is greatest when the
+majority of the iterators –
+
+run for a long time.
+
+Any time that different
+iteration loops branch –
+
+at significantly different moments,
+
+such as in the very beginning,
+at the outermost zoom level,
+
+the CUDA engine performance suffers –
+
+for reasons that were explained
+at 10:57 in this video.
+
+Finally, I made a version
+that combines best techniques –
+
+from all three episodes.
+
+First, there are two CUDA streams.
+
+In addition, there are eight
+native C++ threads,
+
+each of them calculating the image –
+
+using SIMD acceleration.
+
+In total, there are ten
+processing units,
+
+each of them responsible
+for a single picture.
+
+Because of this,
+
+different frames take wildly
+different times to calculate.
+
+The following chart actually
+is actually smoothed data –
+
+where the elephant-size variations –
+
+between the render times
+of different frames –
+
+are somewhat evened out.
+
+In the end it is about
+forty times faster –
+
+than the vanilla version.
+
+Now I know what some of you
+are thinking.
+
+I know, because
+I thought the same.
+
+Isn’t there overhead –
+
+in calculating multiple
+frames in parallel?
+
+Would it not be better
+for cache efficiency –
+
+to work on a single frame
+using multiple threads?
+
+Cache efficiency
+notwithstanding,
+
+it is actually faster –
+
+to calculate multiple frames
+in parallel –
+
+as you can see
+from this chart.
+
+The reason is that –
+
+when you process a single
+frame using threads, say,
+
+by assigning each scanline
+to the next available thread,
+
+there is a situation when
+the frame is almost complete,
+
+where some threads are idle,
+but some are still working.
+
+The next frame cannot be started
+before all threads are finished.
+
+And this moment,
+where some threads are idle,
+
+just does not exist –
+
+when you process multiple
+frames in parallel.
+
+Now you might think:
+
+How about if we start
+assigning threads –
+
+to the next frame
+when they become free,
+
+while some threads
+are still calculating –
+
+the previous frame,
+
+instead of waiting until
+the previous frame is complete?
+
+I thought that too.
+
+In fact, the chart
+you see on the screen –
+
+is the result of that
+thought process –
+
+carried to its end.
+
+The one I described
+earlier was even slower.
+
+Oh. This screen again.
+
+Does this mean I should
+say some words, –
+
+like “conclusion” or something?
+
+Ah. Yeah.
+
+I know I pulled some
+lines straight –
+
+and made some inaccurate
+generalizations here.
+
+For instance, CUDA
+is not actually C++.
+
+NVidia's NVCC
+is based on LLVM,
+
+and can add the
+tiny CUDA extensions –
+
+to many different languages,
+like Fortran for instance.
+
+Essentially the same principle
+as with OpenMP,
+
+but still different some way.
+
+The purpose of this video series –
+
+was to give you some
+ideas and inspiration,
+
+to help you look –
+
+where you didn’t know
+to look before.
+
+There are other people –
+
+who make comprehensive
+references and tutorials.
+
+In any case,
+
+please do check the
+video description –
+
+and the links therein
+for all the information –
+
+that I could not pack
+into the video itself,
+
+and check out the comments
+on the video as well.
+
+I will also gladly reply
+to all polite comments,
+
+although I do hope you
+do your research first –
+
+in case it’s a frequently
+asked question.
+
+Thank you for all your support.
+
+Thanks to people who translate
+captions to different languages!
+
+Huge thanks to all 35000 and more –
+
+people who have hit
+the subscribe button.
+
+You are awesome!
+I wish everyone was like you.
+
+Thanks to people who
+give me awesome ideas –
+
+for future videos and livestreams,
+
+by asking fascinating questions
+in the comments.
+
+I hope you all have
+a fantastic day.
+
+See you again.
+
+
