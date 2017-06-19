@@ -49,6 +49,10 @@ Add `-fopenacc` to both compiler and linker commandlines
 When offloading, you may get linker problems from math functions
 if you do an optimized build. To resolve, add `-foffload=-lm -fno-fast-math -fno-associative-math`
 
+Note that you may get a significantly better performance with
+PGI Community Edition, which has a much more mature OpenACC implementation
+than with GCC does.
+
 ### Build thread programs
 
 Add `-pthread` to linker commandline
