@@ -49,6 +49,7 @@ BINARIES = \
 	mandelbrot-cuda-offload \
 	mandelbrot-openmp-offload \
 	mandelbrot-openacc-offload \
+	mandelbrot-openacc-offload-opt \
 	\
 	mandelbrot-openmp-loop \
 	mandelbrot-cilkplus-loop \
