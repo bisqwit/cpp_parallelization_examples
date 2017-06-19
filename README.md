@@ -5,9 +5,9 @@ The study &amp; production material for the video series:
 * https://www.youtube.com/watch?v=MfEkOcMILDo (Parallelism in C++ :: Part 2/3: Threads (hyperthreading, multiple cpu cores)
 * https://www.youtube.com/watch?v=kIA_UtdVabQ (Parallelism in C++ :: Part 3/3: Offloading (OpenMP, OpenACC, CUDA)
 
-Note that commit 0680aa19f50f4198f3d36d30fe778a50331f9bf5 is
+Note that commit *0680aa19f50f4198f3d36d30fe778a50331f9bf5* is
 the state the programs were when episode 3 was released.
-After that, the example programs may have been updated, bugs fixed etc.
+After that, the example programs have been updated, bugs fixed etc.
 
 Current timings chart on Bisqwit’s computer:
 ![Timings chart](material/11772-cuda-offload3b-0839.png)
