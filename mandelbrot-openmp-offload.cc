@@ -53,20 +53,12 @@ int main()
 
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
-        if(NeedMoment)
-        {
-            #pragma omp target teams distribute parallel for collapse(2) map(from:results[0:Xres*Yres]) firstprivate(zr,zi,xscale,yscale)
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
-        else
-        {
-            #pragma omp target teams distribute parallel for collapse(2) map(from:results[0:Xres*Yres]) firstprivate(zr,zi,xscale,yscale)
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
+        #pragma omp target firstprivate(zr,zi,xscale,yscale,NeedMoment) map(from:results[0:Xres*Yres])
+        #pragma omp teams distribute parallel for collapse(2) dist_schedule(static,64)
+        for(unsigned y=0; y<Yres; ++y)
+            for(unsigned x=0; x<Xres; ++x)
+                results[y*Xres+x] = NeedMoment ? Iterate<true>(  zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) )
+                                               : Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
 
         unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<double>(), 0.));
 
