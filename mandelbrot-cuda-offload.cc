@@ -51,6 +51,8 @@ int main()
 
     bool NeedMoment = true;
 
+    std::vector<unsigned> pixels (Xres * Yres);
+
     MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
@@ -65,8 +67,6 @@ int main()
 
         unsigned n_inside = std::count_if(results, results+npixels, std::bind1st(std::equal_to<double>(), 0.));
         NeedMoment = n_inside >= (Xres*Yres)/1024;
-
-        std::vector<unsigned> pixels (Xres * Yres);
 
         #pragma omp parallel for
         for(unsigned y=0; y<Yres; ++y)

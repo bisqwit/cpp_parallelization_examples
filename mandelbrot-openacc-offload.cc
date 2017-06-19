@@ -43,23 +43,23 @@ int main()
 
     bool NeedMoment = true;
 
+    std::vector<unsigned> pixels (Xres * Yres);
+
     MAINLOOP_START(1);
     while(MAINLOOP_GET_CONDITION())
     {
-        std::vector<unsigned> pixels (Xres * Yres);
-
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
         if(NeedMoment)
         {
-            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
+            #pragma acc parallel loop gang worker vector copyout(results[0:Xres*Yres]) collapse(2)
             for(unsigned y=0; y<Yres; ++y)
                 for(unsigned x=0; x<Xres; ++x)
                     results[y*Xres+x] = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
         }
         else
         {
-            #pragma acc parallel loop gang worker vector copyin(zr,zi,xscale,yscale) copyout(results[0:Xres*Yres])
+            #pragma acc parallel loop gang worker vector copyout(results[0:Xres*Yres]) collapse(2)
             for(unsigned y=0; y<Yres; ++y)
                 for(unsigned x=0; x<Xres; ++x)
                     results[y*Xres+x] = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
