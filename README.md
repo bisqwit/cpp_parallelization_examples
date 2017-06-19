@@ -5,12 +5,29 @@ The study &amp; production material for the video series:
 * https://www.youtube.com/watch?v=MfEkOcMILDo (Parallelism in C++ :: Part 2/3: Threads (hyperthreading, multiple cpu cores)
 * https://www.youtube.com/watch?v=kIA_UtdVabQ (Parallelism in C++ :: Part 3/3: Offloading (OpenMP, OpenACC, CUDA)
 
-Note that commit c46971d75d9d25c4d8b03cd7f4ba2126584f4040 is
+Note that commit 0680aa19f50f4198f3d36d30fe778a50331f9bf5 is
 the state the programs were when episode 3 was released.
 After that, the example programs may have been updated, bugs fixed etc.
 
 Current timings chart on Bisqwit’s computer:
 ![Timings chart](material/11772-cuda-offload3b-0839.png)
+
+## Program list:
+
+* mandelbrot-vanilla: Vanilla algorithm without any parallelisation attempts.  Simple Mandelbrot fractal rendering with some very basic optimizations that will be identical across all the other programs in this list.
+* mandelbrot-implicit-simd: Same as mandelbrot-vanilla, but rewritten as if it were SIMD; to attract SIMD optimizations in a compiler to manifest.
+* mandelbrot-openmp-simd: Same as mandelbrot-implicit-simd, but with OpenMP SIMD pragmas to help the compiler add SIMD optimization where they most probably would help
+* mandelbrot-cilkplus-simd: Same as mandelbrot-openmp-simd, but with CilkPlus pragmas rather than OpenMP pragmas
+* mandelbrot-explicit-simd: Same as mandelbrot-implicit-simd, but completely rewritten with Intel Intrinsics.
+* mandelbrot-openmp-loop: Same as mandelbrot-vanilla, but add OpenMP pragma for simple per-scanline threading.
+* mandelbrot-cilkplus-loop: Same as mandelbrot-openmp-loop, but with CilkPlus equivalents.
+* mandelbrot-thread-loop: Same as mandelbrot-openmp-loop, but using C++11 standard threads rather than pragmas. Algorithm is identical.
+* mandelbrot-openmp-offload: Same as mandelbrot-vanilla, but with minimal correct implementation at OpenMP offloading.
+* mandelbrot-openacc-offload: Same as mandelbrot-vanilla, but with minimal correct implementation at OpenACC offloading.
+* mandelbrot-cuda-offload: Same as mandelbrot-vanilla, but with minimal correct implementation at CUDA offloading.
+* mandelbrot-cuda-offload2: Same as mandelbrot-cuda-offload, but with small optimizations to get better performance.
+* mandelbrot-cuda-offload3: A mixture between mandelbrot-cuda-offload2, mandelbrot-thread-loop, and mandelbrot-explicit-simd.
+* mandelbrot-cuda-offload3b: Same as mandelbrot-cuda-offload3, but with small changes to threading logic in attempt to get better performance. (It failed.)
 
 ## Misc. instructions
 
