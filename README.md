@@ -11,6 +11,9 @@ The study &amp; production material for the video series:
 
 Add `-fopenmp` to both compiler and linker commandlines
 
+When offloading, you may get linker problems from math functions
+if you do an optimized build. To resolve, add `-foffload=-lm -fno-fast-math -fno-associative-math`
+
 ### Build CilkPlus programs
 
 Add `-fcilkplus` to both compiler and linker commandlines, and `-lcilkrts` to linker commandline
@@ -18,6 +21,9 @@ Add `-fcilkplus` to both compiler and linker commandlines, and `-lcilkrts` to li
 ### Build OpenACC programs
 
 Add `-fopenacc` to both compiler and linker commandlines
+
+When offloading, you may get linker problems from math functions
+if you do an optimized build. To resolve, add `-foffload=-lm -fno-fast-math -fno-associative-math`
 
 ### Build thread programs
 
