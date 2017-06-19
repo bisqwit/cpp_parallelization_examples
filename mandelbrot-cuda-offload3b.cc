@@ -43,7 +43,7 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, std:
 }
 
 constexpr unsigned npixels = Xres * Yres, nthreads = 128, nblocks = (npixels + nthreads - 1) / nthreads;
-constexpr unsigned num_streams = 2, num_threads = 8;
+constexpr unsigned num_streams = 2, num_threads = 2;
 
 struct Task
 {
@@ -155,7 +155,7 @@ struct NativeTask: public Task
     double zr=0,zi=0,xscale=0,yscale=0;
     bool   started=false, launched=false, finished=false, terminated=false, NeedMoment=false;
 
-    NativeTask() : thread([this]()
+    NativeTask(unsigned index) : thread([this,index]()
     {
         std::unique_lock<std::mutex> lk(lock);
         for(;;)
@@ -168,8 +168,16 @@ struct NativeTask: public Task
 
             lk.unlock();
 
-            NeedMoment = SimdCalculation<false>(NeedMoment, zr,zi,xscale,yscale, &pixels[0], 0);
-            //NeedMoment = ThreadCalculation(NeedMoment, zr,zi,xscale,yscale, &pixels[0]);
+            if(true)//num_threads == 1)
+            {
+                NeedMoment = SimdCalculation<true>(NeedMoment, zr,zi,xscale,yscale, &pixels[0], index);
+            }
+            else
+            {
+                NeedMoment = SimdCalculation<false>(NeedMoment, zr,zi,xscale,yscale, &pixels[0], index);
+                //NeedMoment = ThreadCalculation(NeedMoment, zr,zi,xscale,yscale, &pixels[0]);
+            }
+
 
             lk.lock();
             finished = true;
@@ -225,12 +233,12 @@ int main()
     constexpr unsigned num_tasks = num_streams + num_threads;
     std::array<std::unique_ptr<Task>, num_tasks> tasks;
     for(unsigned n=0; n<num_streams; ++n) tasks[n+          0] = std::unique_ptr<Task>(new CudaTask);
-    for(unsigned n=0; n<num_threads; ++n) tasks[n+num_streams] = std::unique_ptr<Task>(new NativeTask);
+    for(unsigned n=0; n<num_threads; ++n) tasks[n+num_streams] = std::unique_ptr<Task>(new NativeTask(n));
 
     std::array<std::pair<unsigned,double>, num_tasks> info;
     std::map<unsigned,bool> flags;
 
-    MAINLOOP_START(num_tasks * 2);
+    MAINLOOP_START(num_tasks * 4);
 
     while(MAINLOOP_GET_CONDITION_INFO())
     {

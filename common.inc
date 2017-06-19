@@ -105,7 +105,9 @@ void Terminate(int sig)
             std::ofstream f("timings_all.txt"); \
             auto& tab = timings[PROG_NAME]; \
             f << "Frame" << delimiter; for(const auto& h: timings) f << h.first << delimiter; \
-            if(PROG_NAME == std::string("cuda-offload3")) { tab.clear(); timings.erase("cuda-offload3.o"); } \
+            if(PROG_NAME == std::string("cuda-offload3") \
+            || PROG_NAME == std::string("cuda-offload3b") \
+              ) { tab.clear(); timings.erase("cuda-offload3.o"); } \
             f << std::endl << std::flush; \
             if(setjmp(termination) > 0) goto done_loop; \
             std::signal(SIGINT, Terminate); \

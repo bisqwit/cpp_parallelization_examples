@@ -12,7 +12,7 @@ double Iterate(double zr, double zi)
     double dist;
     int iter = maxiter, notescaped = -1;
 
-    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { iter=0; }
+    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { notescaped=iter=0; }
 
     while(notescaped)
     {
@@ -52,20 +52,12 @@ int main()
 
         double zr, zi, xscale, yscale; MAINLOOP_SET_COORDINATES();
 
-        if(NeedMoment)
-        {
-            #pragma omp target teams distribute parallel for map(to:zr,zi,xscale,yscale) map(from:results[0:Xres*Yres]) collapse(2)
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
-        else
-        {
-            #pragma omp target teams distribute parallel for map(to:zr,zi,xscale,yscale) map(from:results[0:Xres*Yres]) collapse(2)
-            for(unsigned y=0; y<Yres; ++y)
-                for(unsigned x=0; x<Xres; ++x)
-                    results[y*Xres+x] = Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
-        }
+        #pragma omp target map(to:zr,zi,xscale,yscale,NeedMoment) map(from:results[0:Xres*Yres])
+        #pragma omp teams distribute parallel for collapse(2)
+        for(unsigned y=0; y<Yres; ++y)
+            for(unsigned x=0; x<Xres; ++x)
+                results[y*Xres+x] = NeedMoment ? Iterate<true>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) )
+                                               : Iterate<false>( zr+xscale*int(x-Xres/2), zi+yscale*int(y-Yres/2) );
 
         unsigned n_inside = std::count_if(results, results+Xres*Yres, std::bind1st(std::equal_to<double>(), 0.));
 

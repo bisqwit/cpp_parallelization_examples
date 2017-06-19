@@ -13,32 +13,33 @@ void __global__ Iterate(double zr, double zi, double xscale, double yscale, std:
 
     double cr = zr += xscale*int(x-Xres/2), sr = cr;
     double ci = zi += yscale*int(y-Yres/2), si = ci;
-    double dist = 0;
-    int iter    = maxiter;
-    bool act    = true;
+    double dist;
+    int iter = maxiter, notescaped = -1;
 
-    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { act=false; iter=0; }
+    if(zr*(1+zr*(8*zr*zr+(16*zi*zi-3)))+zi*zi*(8*zi*zi-3) < 3./32 || ((zr+1)*(zr+1)+zi*zi)<1./16) { notescaped=iter=0; }
 
-    while(act)
+    while(notescaped)
     {
         double r2 = cr * cr;
         double i2 = ci * ci;
-        dist = act ? r2 + i2 : dist;
-        act = iter && dist < escape_radius_squared ? act : false;
-        iter -= act;
+        dist = r2 + i2;
+
+        notescaped &= ((iter != 0) & (dist < escape_radius_squared)) ? -1 : 0;
+        iter += notescaped;
+
         double ri = cr * ci;
         ci = zi + (ri * 2);
         cr = zr + (r2 - i2);
 
         if(WithMoment)
         {
-            bool moment = iter & (iter-1);
-            iter = (cr == sr && ci == si) ? 0 : iter;
-            sr = moment ? sr : cr;
-            si = moment ? si : ci;
+            bool notmoment = iter & (iter-1);
+            if(cr==sr && ci==si) iter=0;
+            if(!notmoment) sr = cr;
+            if(!notmoment) si = ci;
         }
     }
-    results[slotno] = iter ? int(std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (8*4/std::log2(std::exp(1.)))) : 0;
+    results[slotno] = iter ? std::log2( maxiter-iter + 1 - std::log2(std::log2(dist) / 2)) * (4/std::log2(std::exp(1.))) : 0;
 }
 
 constexpr unsigned npixels = Xres * Yres, nthreads = 128, nblocks = (npixels + nthreads - 1) / nthreads;

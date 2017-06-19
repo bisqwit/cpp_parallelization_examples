@@ -191,10 +191,9 @@ int main()
     {
         static struct { std::vector<unsigned> pixels;
                         std::thread saver;
-                        bool        started;
-                      } data;
+                      } data{ {}, {} };
 
-        if(data.started) data.saver.join();
+        if(data.saver.joinable()) data.saver.join();
         data.pixels.assign(pixels, pixels + xres*yres);
         data.saver = std::thread([filename]()
         {
@@ -215,7 +214,6 @@ int main()
             }
             gdImageDestroy(im);
         });
-        data.started = true;
     };
 
     cairo_surface_t* sfc = cairo_image_surface_create_for_data

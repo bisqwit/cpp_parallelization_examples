@@ -185,7 +185,7 @@ __m256d Iterate(__m256d zr, __m256d zi)
                                                                                                  _mm256_set1_pd(0.5))))))))));
 }
 
-bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels)
+unsigned SimdCalculationY(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels, unsigned y)
 {
     #if defined(__AVX2__) || defined(__AVX512F__)
     constexpr unsigned N=8;
@@ -201,7 +201,7 @@ bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double y
 
             //#pragma omp declare reduction(m128:__m128i:omp_out=_mm_add_epi32(omp_in,omp_out))
             //#pragma omp parallel for schedule(dynamic,2) reduction(m128:num_zeroes) num_threads(1)
-            for(unsigned y=0; y<Yres; ++y)
+            //for(unsigned y=0; y<Yres; ++y)
             {
                 __m256d i = _mm256_set1_pd( zi+yscale*int(y-Yres/2) );
 
@@ -221,8 +221,7 @@ bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double y
             }
             num_zeroes = _mm_add_epi32(num_zeroes, _mm_srli_si128(num_zeroes, 8)); // 0+2, 1+3, 2, 3
             num_zeroes = _mm_hadd_epi32(num_zeroes, num_zeroes); // 0+2+1+3, ...
-            NeedMoment = _mm_extract_epi32(num_zeroes,0) >= int(Xres*Yres/1024);
-            break;
+            return _mm_extract_epi32(num_zeroes,0);
         }
 
         case 8:
@@ -231,7 +230,7 @@ bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double y
 
             //#pragma omp declare reduction(m256:__m256i:omp_out=_mm256_add_epi32(omp_in,omp_out))
             //#pragma omp parallel for schedule(dynamic,2) reduction(m256:num_zeroes) num_threads(1)
-            for(unsigned y=0; y<Yres; ++y)
+            //for(unsigned y=0; y<Yres; ++y)
             {
                 __m512d i = _mm512_set1_pd( zi+yscale*int(y-Yres/2) );
 
@@ -252,9 +251,135 @@ bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double y
             __m128i z128 = _mm_add_epi32(extract128(num_zeroes,0), extract128(num_zeroes,1)); // 0+4, 1+5, 2+6, 3+7
             z128 = _mm_add_epi32(z128, _mm_srli_si128(z128, 8)); // 0+4+2+6, 1+5+3+7, 2+6, 3+7
             z128 = _mm_hadd_epi32(z128, z128); // 0+4+2+6+1+5+3+7, ...
-            NeedMoment = _mm_extract_epi32(z128,0) >= int(Xres*Yres/1024);
-            break;
+            return _mm_extract_epi32(z128,0);
         }
     }
-    return NeedMoment;
 }
+
+#include <atomic>
+#include <utility>
+
+struct SimdCalcData;
+
+static constexpr unsigned NThread = 8, NSplit = 2;
+static std::atomic<unsigned> y_done[NSplit];
+static std::atomic<unsigned> n_inside[NSplit];
+
+struct SimdCalcData
+{
+    bool NeedMoment; double zr;double zi;double xscale;double yscale; unsigned* pixels;
+
+    void Do(unsigned n)
+    {
+        unsigned count_inside = 0;
+        for(unsigned y; (y = y_done[n]++) < Yres; )
+        {
+            count_inside += SimdCalculationY(NeedMoment, zr,zi, xscale,yscale,pixels, y);
+        }
+
+        n_inside[n] += count_inside;
+    }
+};
+
+/* Using POSIX pthread instead of C++ threads and condition variables,
+ * because of linker issues.
+ * NVidia’s nvcc uses GCC 4.9, but this file is compiled with newest GCC.
+ * If we use std::thread, this file will not link cleanly
+ * with the nvcc-compiled file due to changed ABI.
+ */
+#include <pthread.h>
+
+static SimdCalcData*         data[NThread];
+static pthread_t             threads[NThread];
+static pthread_cond_t        started[NSplit];
+static pthread_cond_t        finished[NSplit];
+static pthread_mutex_t       waitmutex[NSplit];
+static std::atomic<bool>     terminated{false};
+
+static void* ThreadWorker(void* param)
+{
+    unsigned n = (unsigned)(std::ptrdiff_t)param;
+    for(;;)
+    {
+        pthread_mutex_lock(&waitmutex[n % NSplit]);
+        do {
+            pthread_cond_wait(&started[n % NSplit], &waitmutex[n % NSplit]);
+        } while(y_done[n % NSplit] == ~0u && !terminated);
+        pthread_mutex_unlock(&waitmutex[n % NSplit]);
+
+        if(terminated) break;
+
+        data[n]->Do(n % NSplit);
+
+        pthread_mutex_lock(&waitmutex[n % NSplit]);
+        pthread_mutex_unlock(&waitmutex[n % NSplit]);
+        pthread_cond_broadcast(&finished[n % NSplit]);
+    }
+    return nullptr;
+}
+
+static struct ThreadInit
+{
+    ThreadInit()
+    {
+        terminated = false;
+        for(unsigned n=0; n<NSplit; ++n) pthread_mutex_init(&waitmutex[n], nullptr);
+        for(unsigned n=0; n<NSplit; ++n) pthread_cond_init(&started[n], nullptr);
+        for(unsigned n=0; n<NSplit; ++n) pthread_cond_init(&finished[n], nullptr);
+        for(unsigned n=0; n<NSplit; ++n) { y_done[n] = ~0u; n_inside[n] = 0; }
+        for(unsigned n=0; n<NThread; ++n) data[n] = nullptr;
+        for(unsigned n=0; n<NThread; ++n) pthread_create(&threads[n], nullptr, ThreadWorker, (void*)(std::ptrdiff_t)n);
+    }
+    ~ThreadInit()
+    {
+        terminated = true;
+        for(unsigned n=0; n<NSplit; ++n)
+        {
+            pthread_mutex_lock(&waitmutex[n]);
+            pthread_mutex_unlock(&waitmutex[n]);
+            pthread_cond_broadcast(&started[n]);
+        }
+        for(unsigned n=0; n<NThread; ++n) pthread_join(threads[n], nullptr);
+    }
+} threadInit;
+
+template<bool parallel>
+bool SimdCalculation(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels, unsigned index)
+{
+    unsigned num_zeroes = 0;
+
+    if(parallel)
+    {
+        SimdCalcData thisdata{NeedMoment,zr,zi,xscale,yscale,pixels};
+
+        for(unsigned n=0; n<NThread/NSplit; ++n)
+            data[index + n*NSplit] = &thisdata;
+
+        y_done[index]   = 0;
+        n_inside[index] = 0;
+        pthread_mutex_lock(&waitmutex[index]);
+        pthread_mutex_unlock(&waitmutex[index]);
+        pthread_cond_broadcast(&started[index]);
+
+        pthread_mutex_lock(&waitmutex[index]);
+        do {
+            pthread_cond_wait(&finished[index], &waitmutex[index]);
+        } while(y_done[index] < Yres);
+        pthread_mutex_unlock(&waitmutex[index]);
+
+        num_zeroes = n_inside[index];
+    }
+    else
+    {
+        for(unsigned y=0; y<Yres; ++y)
+            num_zeroes += SimdCalculationY(NeedMoment, zr,zi,xscale,yscale,pixels, y);
+    }
+
+    return num_zeroes >= (Xres*Yres/1024u);
+}
+
+
+template
+bool SimdCalculation<false>(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels, unsigned index);
+template
+bool SimdCalculation<true>(bool NeedMoment, double zr,double zi,double xscale,double yscale, unsigned* pixels, unsigned index);

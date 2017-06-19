@@ -43,6 +43,7 @@ LDLIBS   = -pthread $(shell pkg-config sdl --libs)
 CPPFLAGS +=         $(shell pkg-config sdl --cflags --libs)
 
 BINARIES = \
+	mandelbrot-cuda-offload3b \
 	mandelbrot-cuda-offload3 \
 	mandelbrot-cuda-offload2 \
 	mandelbrot-cuda-offload \
@@ -82,10 +83,12 @@ $(filter mandelbrot-openacc%,$(BINARIES)): CXXFLAGS += -fopenacc
 $(filter mandelbrot-openmp-offload,$(BINARIES)):  CXXFLAGS += -foffload=-lm -fno-fast-math -fno-associative-math
 $(filter mandelbrot-openacc-offload,$(BINARIES)): CXXFLAGS += -foffload=-lm -fno-fast-math -fno-associative-math
 
-$(filter mandelbrot-cuda%,$(BINARIES)):   CXX = nvcc -x cu
+NVCC_OPTIMIZE = --gpu-architecture=compute_52 --gpu-code=sm_52 --use_fast_math -O3
+
+$(filter mandelbrot-cuda%,$(BINARIES)):   CXX = nvcc -x cu $(NVCC_OPTIMIZE)
 $(filter mandelbrot-cuda%,$(BINARIES)):   CC  = nvcc -Xcompiler -fopenmp
-$(filter mandelbrot-cuda%,$(BINARIES)):   CXXFLAGS = -std=c++11 -O3 $(shell pkg-config sdl --cflags)
-$(filter mandelbrot-cuda%,$(BINARIES)):   CPPFLAGS = -Xcompiler '-Wall -Wextra -Ofast -fopenmp' $(DEFS)
+$(filter mandelbrot-cuda%,$(BINARIES)):   CXXFLAGS = -std=c++11 $(shell pkg-config sdl --cflags)
+$(filter mandelbrot-cuda%,$(BINARIES)):   CPPFLAGS = -Xcompiler '-Wall -Wextra -march=native -Ofast -fopenmp' $(DEFS)
 $(filter mandelbrot-cuda%,$(BINARIES)):   LDLIBS   = $(shell pkg-config sdl --libs --cflags)
 
 #$(BINARIES): common.inc
@@ -95,6 +98,8 @@ $(BINARIES): CPPFLAGS += -DPROG_NAME="\"$(subst mandelbrot-,,$(subst .o,,$@))\""
 
 mandelbrot-cuda-offload3:     CXXFLAGS += -Xcompiler '-march=native $(PLATFORM_OPTS)'
 mandelbrot-cuda-offload3: mandelbrot-cuda-offload3.o mandelbrot-explicit-simd-helper.o mandelbrot-thread-loop-helper.o
+mandelbrot-cuda-offload3b:     CXXFLAGS += -Xcompiler '-march=native $(PLATFORM_OPTS)'
+mandelbrot-cuda-offload3b: mandelbrot-cuda-offload3b.o mandelbrot-explicit-simd-helper.o mandelbrot-thread-loop-helper.o
 
 mandelbrot-explicit-simd-helper.o: CXX = g++ -fopenmp
 mandelbrot-explicit-simd-helper.o: CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered
@@ -103,3 +108,7 @@ mandelbrot-explicit-simd-helper.o: CXXFLAGS = -std=c++14 -Ofast -march=native
 mandelbrot-thread-loop-helper.o: CXX = g++ -fopenmp
 mandelbrot-thread-loop-helper.o: CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered
 mandelbrot-thread-loop-helper.o: CXXFLAGS = -std=c++14 -Ofast -march=native
+
+#[[ OpenACC: Nvidia PTX and host  : ACC_DEVICE_TYPE={nvidia|host}, GOMP_DEBUG=1 ]]
+#[[ OpenMP:  Also Intel MIC (emu) : OMP_DEFAULT_DEVICE={0=mic,1=nvidia,2=host}, GOMP_DEBUG=1 ]]
+
