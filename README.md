@@ -12,6 +12,8 @@ After that, the example programs have been updated, bugs fixed etc.
 Current timings chart on Bisqwit’s computer:
 ![Timings chart](material/11772-cuda-offload3b-0839.png)
 
+![Timings animation](material/animation.gif)
+
 ## Program list:
 
 * mandelbrot-vanilla: Vanilla algorithm without any parallelisation attempts.  Simple Mandelbrot fractal rendering with some very basic optimizations that will be identical across all the other programs in this list.
