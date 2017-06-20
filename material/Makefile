@@ -21,8 +21,8 @@ animation.gif: tile-${N}.gif
 
 tile-${N}.gif: thu/${LAST}.png
 	/chii/bisqwit/src/animmerger/animmerger \
-		 --noalign -pc -Qq,16 --dc=2 --dm=2x2 -otile-%05d.gif thu/*.png \
-	|| animmerger --noalign -pc -Qq,16 --dc=2 --dm=2x2 -otile-%05d.gif thu/*.png
+		 --noalign -pc -Qq,32 --dc=2 --dm=2x2 -otile-%05d.gif thu/*.png \
+	|| animmerger --noalign -pc -Qq,32 --dc=2 --dm=2x2 -otile-%05d.gif thu/*.png
 
 thu/${LAST}.png: ${LAST}.png
 	- mkdir thu
