@@ -118,7 +118,7 @@ bool ThreadCalculation(bool NeedMoment, double zr,double zi,double xscale,double
 {
     std::atomic<unsigned>    y_done{0}, n_inside{0};
     std::vector<std::thread> threads;
-    for(unsigned n=0; n<8; ++n)
+    for(unsigned n=0; n<std::thread::hardware_concurrency(); ++n)
         threads.emplace_back([&](){
             unsigned count_inside = 0;
             for(unsigned y; (y = y_done++) < Yres; )
