@@ -106,6 +106,8 @@ ATTENTION: Do *not* just dump all this into your shell as a copypaste.
 You need to understand what you are doing.
 
 ```
+# Preparation step for NVidia PTX offloading
+
 # Download and install NVidia PTX target tools
 cd /usr/local/src
 git clone https://github.com/MentorEmbedded/nvptx-tools
@@ -113,8 +115,13 @@ cd nvptx-tools
 ./configure
 make -j8
 make install
+```
+
+```
+# Preparation step for HSA offloading
 
 # Download and install HSA library and drivers
+#
 # Note: This has changed. See https://github.com/RadeonOpenCompute for new instructions.
 
 cd /usr/local/src
@@ -123,7 +130,9 @@ dpkg -i HSA-Runtime-AMD/ubuntu/hsa-runtime*_amd64.deb
 git clone -b kfd-v1.6.x https://github.com/HSAFoundation/HSA-Drivers-Linux-AMD.git
 echo 'KERNEL=="kfd", MODE="0666"' | sudo tee /etc/udev/rules.d/kfd.rules
 dpkg -i HSA-Drivers-Linux-AMD/kfd*/ubuntu/libhsakmt*.deb
+```
 
+```
 # Let’s build GCC. Go to a suitable build directory with enough free space
 cd /dev/shm
 
@@ -131,9 +140,13 @@ cd /dev/shm
 wget ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-7.1.0/gcc-7.1.0.tar.bz2
 tar xvfj gcc-7.1.0.tar.bz2
 cd gcc-7.1.0
+```
+
+```
+# GCC build, part 1: NVidia PTX offloading compiler
 
 # Download Newlib port for NVPTX
-git clone https://github.com/MentorEmbedded/nvptx-newlib newlib
+git clone https://github.com/MentorEmbedded/nvptx-newlib newlib # Still in the gcc-7.1.0 directory
 
 # Build NVidia PTX offloading compiler
 rm -rf build # Still in the gcc-7.1.0 directory
@@ -146,6 +159,10 @@ cd build
         --enable-languages=c,c++,lto --with-build-time-tools=/usr/local/nvptx-none/bin
 make -j8
 make install
+```
+
+```
+# GCC build, part 2: MIC offloading compiler & emulator
 
 # Build MIC offloading compiler & emulator
 # Add --disable-bootstrap to configure to make the build time shorter
@@ -157,6 +174,10 @@ rm -rf * # Still in the "build" directory
         --enable-languages=c,c++,lto
 make -j8
 make install
+```
+
+```
+# GCC build, part 3: Build actual host compiler
 
 # Build the actual compiler, with support for both targets
 # Add --disable-bootstrap to configure to make the build time shorter
