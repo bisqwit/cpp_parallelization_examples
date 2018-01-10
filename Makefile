@@ -58,6 +58,7 @@ BINARIES = \
 	mandelbrot-openmp-simd \
 	mandelbrot-cilkplus-simd \
 	mandelbrot-explicit-simd \
+	mandelbrot-explicit-simd-thr \
 	\
 	mandelbrot-vanilla \
 	\
@@ -104,6 +105,10 @@ mandelbrot-cuda-offload3b: mandelbrot-cuda-offload3b.o mandelbrot-explicit-simd-
 mandelbrot-explicit-simd-helper.o: CXX = g++ -fopenmp
 mandelbrot-explicit-simd-helper.o: CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered
 mandelbrot-explicit-simd-helper.o: CXXFLAGS = -std=c++14 -Ofast -march=native
+
+
+mandelbrot-explicit-simd-thr.o: CXX = g++ -fopenmp
+mandelbrot-explicit-simd-thr:   LDLIBS += -fopenmp
 
 mandelbrot-thread-loop-helper.o: CXX = g++ -fopenmp
 mandelbrot-thread-loop-helper.o: CPPFLAGS = -Wall -Wextra $(DEFS) -Wno-clobbered

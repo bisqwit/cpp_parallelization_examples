@@ -174,12 +174,15 @@ int main()
         {0x609000, "openmp-loop" },
         {0x20AA00, "cilkplus-loop" },
         {0xE0FFA0, "thread-loop" },
-        {0xF00000, "openmp-offload" },
-        {0xD0D000, "openacc-offload" },
         {0xAA3320, "cuda-offload" },
         {0xEE5540, "cuda-offload2" },
         {0xFFAA55, "cuda-offload3" },
-        {0xFF22FF, "cuda-offload3b" }
+        {0xFF22FF, "cuda-offload3b" },
+
+        {0x3333FF, "explicit-simd-thr" },
+
+        {0xD0D000, "openacc-offload" },
+        {0xF00000, "openmp-offload" },
     };
 
     static unsigned pixels[xres*yres];
@@ -318,13 +321,14 @@ int main()
         if(s.second == "cuda-offload")  width = 2.2;
         if(s.second == "cuda-offload2") width = 2.2;
         if(s.second == "cuda-offload3") width = 2.4;
-        if(s.second == "cuda-offload3b") width = 4.0;
+        if(s.second == "cuda-offload3b") width = 2.0;
         if(s.second == "cilkplus-loop") width = 2.4;
         if(s.second == "vanilla" || s.second == "explicit-simd") width = 5.0;
         if(s.second == "thread-loop") width = 1.5;
         if(s.second == "openmp-offload")  width = 2.2;
         if(s.second == "openacc-offload") width = 1.9;
         if(s.second == "openmp-loop") width = 8;
+        if(s.second == "explicit-simd-thr") width = 8;
 
         const double r = ((s.first >> 16) & 0xFF) / 255.;
         const double g = ((s.first >>  8) & 0xFF) / 255.;
@@ -365,7 +369,15 @@ int main()
                 cairo_line_to(c, xcoord(frame), ycoord(value));
             }
 
-            if((frame+1) % FRAME_INTERVAL == 0 || frame == (maxframe+1000)) //
+            unsigned interv = FRAME_INTERVAL;
+            if(s.second != "openmp-offload" && s.second != "openacc-offload") interv = 1800;
+            if(s.second == "explicit-simd-thr")
+            {
+                interv = 200;
+                if(frame >= 3000) interv = 5;
+            }
+
+            if((frame+1) % interv == 0 || frame == (maxframe+1000)) //
             {
                 cairo_set_line_width(c, width);
                 cairo_set_source_rgb(c, r,g,b);
